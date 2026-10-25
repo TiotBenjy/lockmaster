@@ -40,14 +40,15 @@ function notInitialized(reason: string): LockmasterError {
  * du signataire est justement ce groupe : la clé doit alors être en 0400.
  */
 export function keyGroups(config: SignerConfig): number[] {
-  const own = defaultAllowedGids();
   let socketGroup: number | undefined;
   try {
-    socketGroup = lstatSync(dirname(config.socket.path)).gid;
+    const dir = lstatSync(dirname(config.socket.path));
+    // Même règle que la vérification du socket : groupe du dossier s'il est setgid, sinon egid.
+    socketGroup = (dir.mode & 0o2000) !== 0 ? dir.gid : process.getegid?.();
   } catch {
-    socketGroup = undefined;
+    return [0];
   }
-  return own.filter((gid) => gid === 0 || gid !== socketGroup);
+  return defaultAllowedGids().filter((gid) => gid === 0 || gid !== socketGroup);
 }
 
 function preflight(config: SignerConfig) {
