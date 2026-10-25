@@ -79,17 +79,20 @@ async function codeOf(promise: Promise<number>): Promise<string> {
 }
 
 describe('SEC-07 : lockmaster init en root ne suit aucun lien de data_dir', () => {
-  it("crée la base sous l'identité du service, jamais en root ; la clé en 0440 avec le groupe du service", async () => {
-    const { ctx, dataDir, keyFile } = await setup();
+  it("crée la base sous l'identité du service, jamais en root ; la clé en root 0400 (SEC-29)", async () => {
+    const { ctx, dataDir, keyFile, output } = await setup();
     const dbPath = join(dataDir, 'lockmaster.db');
     const privileges = fakePrivileges(() => expect(existsSync(dbPath)).toBe(false));
     expect(await initCommand(ctx, { accounts: accounts(), privileges })).toBe(0);
     expect(privileges.events).toEqual([`chown:${dataDir}:${me.uid}`, `enter:${me.uid}`, 'exit']);
     expect(existsSync(dbPath)).toBe(true);
-    expect(statSync(keyFile).mode & 0o777).toBe(0o440);
+    // Illisible pour le compte du service hors de son unité : systemd la lui transmet (LoadCredential).
+    expect(statSync(keyFile).mode & 0o777).toBe(0o400);
+    expect(statSync(keyFile).gid).toBe(me.gid);
+    expect(output()).toMatch(/master-key-credential\.conf/);
   });
 
-  it('se relance sans erreur sur la clé root:<groupe du service> 0440 créée la première fois', async () => {
+  it('se relance sans erreur sur la clé root 0400 créée la première fois', async () => {
     const { ctx } = await setup();
     expect(await initCommand(ctx, { accounts: accounts(), privileges: fakePrivileges() })).toBe(0);
     expect(await initCommand(ctx, { accounts: accounts(), privileges: fakePrivileges() })).toBe(0);

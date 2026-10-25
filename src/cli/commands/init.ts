@@ -12,11 +12,15 @@ import { type CommandContext, loadContextConfig } from '../context.js';
 import { type Identity, type Privileges, processPrivileges } from '../privileges.js';
 
 // `lockmaster init` (version M0) : clé maîtresse de l'application et base initialisée. Idempotent :
-// ne remplace jamais une clé ni une base existante. Lancé en root (paquets) : clé root:lockmaster
-// 0440 ; la base est créée sous l'identité du service (src/cli/privileges.ts), jamais en root.
+// ne remplace jamais une clé ni une base existante. Lancé en root (paquets) : clé root:root 0400,
+// que systemd transmet au service (LoadCredential=, SEC-29) ; la base est créée sous l'identité du
+// service (src/cli/privileges.ts), jamais en root.
 // Initialisation du signataire et création du premier administrateur : jalon M2.
 
 const SERVICE_ACCOUNT = 'lockmaster';
+const CREDENTIAL_HINT =
+  'clé transmise au service par systemd (LoadCredential) ; pour la chiffrer avec systemd-creds : ' +
+  '/usr/share/doc/lockmaster/examples/master-key-credential.conf';
 const MIN_ADMIN_PASSWORD_LENGTH = 12;
 const DATABASE_FILES = ['', '-wal', '-shm', '-journal'];
 
@@ -29,7 +33,6 @@ export interface InitDeps {
 interface RootMode {
   privileges: Privileges;
   service: Identity;
-  keyOwner: Identity;
 }
 
 function unsafe(path: string, reason: string): LockmasterError {
@@ -52,7 +55,8 @@ function ensureMasterKey(config: Config, root: RootMode | undefined): string {
     const options: SecretFileOptions = root
       ? {
           allowedUids: [root.privileges.superuser.uid],
-          allowedGids: [root.privileges.superuser.gid, root.keyOwner.gid],
+          // root:root 0400, ou root:lockmaster 0440 (versions antérieures à LoadCredential).
+          allowedGids: [root.privileges.superuser.gid, root.service.gid],
         }
       : {};
     parseMasterKey(readSecretFile(path, options));
@@ -62,8 +66,8 @@ function ensureMasterKey(config: Config, root: RootMode | undefined): string {
   if (isInsideReally(config.server.data_dir, path)) {
     throw new LockmasterError('CONFIG_INVALID', 'security.master_key_file ne doit pas se trouver sous server.data_dir');
   }
-  writeNewFile(path, generateMasterKeyText(), root ? 0o440 : 0o400, root?.keyOwner);
-  return `clé maîtresse créée : ${path}`;
+  writeNewFile(path, generateMasterKeyText(), 0o400, root?.privileges.superuser);
+  return root ? `clé maîtresse créée : ${path}\n${CREDENTIAL_HINT}` : `clé maîtresse créée : ${path}`;
 }
 
 /**
@@ -149,7 +153,6 @@ export async function initCommand(
       ? {
           privileges: deps.privileges,
           service: deps.accounts.userIds(SERVICE_ACCOUNT),
-          keyOwner: { uid: deps.privileges.superuser.uid, gid: deps.accounts.groupId(SERVICE_ACCOUNT) },
         }
       : undefined;
   const lines = [ensureMasterKey(config, root)];

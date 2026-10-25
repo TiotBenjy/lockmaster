@@ -104,6 +104,10 @@ Exigences `docs/11` : SEC-22 (mémoire des décompresseurs : fenêtre zstd, limi
 
 Exigences `docs/11` : SEC-21 (points de contrôle d'audit périodiques, clé d'audit dédiée, réglages réservés), SEC-06 (certificat de révocation généré avec chaque clé), SEC-05 (une clé par dépôt).
 
+Reporté de M0 (SEC-29) : la clé maîtresse de l'application est en `root:root` 0400 et transmise par
+`LoadCredential=` ; faire de même pour celle du signataire (`lockmaster-signer.service`) quand
+`lockmaster init` initialisera le signataire.
+
 - [ ] `db/` : connexion (pragmas), migrations embarquées, `0001_init.sql` (= `docs/05`), helper `tx`
       synchrone, repositories Kysely typés
 - [ ] `storage/` : blobs adressés par contenu (tmp + fsync + rename), `paths.ts` validé et testé
