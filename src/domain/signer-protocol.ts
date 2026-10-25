@@ -33,10 +33,16 @@ export function encodeFrame(message: unknown): Buffer {
 
 /** Accumule les octets reçus et rend l'unique message de la connexion dès qu'il est complet. */
 export class FrameReader {
+  readonly #limit: number;
   #chunks: Buffer[] = [];
   #size = 0;
   #expected: number | undefined;
   #done = false;
+
+  /** `limit` : taille maximale du message, jamais au-delà de 16 Mio. */
+  constructor(limit = MAX_FRAME_BYTES) {
+    this.#limit = Math.min(limit, MAX_FRAME_BYTES);
+  }
 
   push(chunk: Buffer): unknown | undefined {
     if (this.#done) throw fail('SIGNER_FRAME_INVALID', 'une seule requête par connexion');
@@ -44,7 +50,9 @@ export class FrameReader {
     this.#size += chunk.length;
     if (this.#expected === undefined && this.#size >= HEADER_BYTES) {
       this.#expected = Buffer.concat(this.#chunks).readUInt32BE(0);
-      if (this.#expected > MAX_FRAME_BYTES) throw fail('SIGNER_FRAME_TOO_LARGE', 'message de plus de 16 Mio');
+      if (this.#expected > this.#limit) {
+        throw fail('SIGNER_FRAME_TOO_LARGE', `message de plus de ${this.#limit} octets`);
+      }
     }
     if (this.#expected === undefined || this.#size < HEADER_BYTES + this.#expected) return undefined;
     if (this.#size > HEADER_BYTES + this.#expected) {

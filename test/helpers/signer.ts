@@ -5,8 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runSignerCli } from '../../src/signer/cli.js';
 
-/** Installation de test du signataire : dossier du socket (2750), données, clé, signer.toml. */
-export function signerInstallation(extra = '', socketTimeout = '30s') {
+/**
+ * Installation de test du signataire : dossier du socket (2750), données, clé, signer.toml.
+ * Le groupe attendu sur le socket est le groupe principal du compte de test (numérique).
+ */
+export function signerInstallation(extra = '', requestTimeout = '30s', socketGroup = String(process.getgid?.() ?? 0)) {
   const root = mkdtempSync(join(tmpdir(), 'lockmaster-signer-'));
   const socketDir = join(root, 'run');
   mkdirSync(socketDir);
@@ -17,13 +20,12 @@ export function signerInstallation(extra = '', socketTimeout = '30s') {
     config,
     `[server]
 data_dir = "${root}/data"
+socket = "${socketDir}/sign.sock"
+socket_group = "${socketGroup}"
+request_timeout = "${requestTimeout}"
 
 [security]
 master_key_file = "${root}/etc/master.key"
-
-[socket]
-path = "${socketDir}/sign.sock"
-timeout = "${socketTimeout}"
 
 [log]
 level = "info"

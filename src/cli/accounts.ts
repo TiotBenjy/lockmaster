@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { LockmasterError } from '../domain/errors.js';
+import { resolveGroup } from '../system/groups.js';
 
 // Comptes système (créés par systemd-sysusers, packaging/sysusers/lockmaster.conf), lus dans
 // /etc/passwd et /etc/group sans outil externe. Utilisé par `lockmaster init` lancé en root.
@@ -20,6 +21,6 @@ export interface SystemAccounts {
 export function systemAccounts(passwd = '/etc/passwd', group = '/etc/group'): SystemAccounts {
   return {
     userIds: (name) => ({ uid: field(passwd, name, 2), gid: field(passwd, name, 3) }),
-    groupId: (name) => field(group, name, 2),
+    groupId: (name) => resolveGroup(name, group),
   };
 }

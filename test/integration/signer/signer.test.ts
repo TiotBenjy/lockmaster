@@ -159,6 +159,29 @@ describe('socket du signataire', () => {
     });
   });
 
+  it.each([
+    ['groupe inconnu', 'groupe-inexistant-lockmaster'],
+    ['autre groupe que celui du socket', String((process.getgid?.() ?? 0) + 1)],
+  ])('refuse de démarrer si socket_group ne correspond pas au socket : %s', async (_label, group) => {
+    const install = signerInstallation('', '30s', group);
+    cleanups.push(install.cleanup);
+    expect((await signerCli(['init', '--config', install.config])).code).toBe(0);
+    await expect(
+      startSigner(loadSignerConfig({ path: install.config, env: {} }), { logDestination: new LogCapture() }),
+    ).rejects.toMatchObject({ code: 'SIGNER_SOCKET_UNSAFE' });
+  });
+
+  it('socket_group vide : accepte le groupe du dossier setgid (quadlets, groupe hôte sans nom)', async () => {
+    const install = signerInstallation('', '30s', '');
+    cleanups.push(install.cleanup);
+    expect((await signerCli(['init', '--config', install.config])).code).toBe(0);
+    const signer = await startSigner(loadSignerConfig({ path: install.config, env: {} }), {
+      logDestination: new LogCapture(),
+    });
+    cleanups.push(() => signer.stop());
+    expect(await createSignerClient({ socketPath: install.socket, timeoutMs: 2000 }).ping()).toBe(true);
+  });
+
   it("refuse un dossier de socket modifiable par le groupe (l'application pourrait remplacer le socket)", async () => {
     const install = await initialized();
     chmodSync(join(install.socket, '..'), 0o2770);
