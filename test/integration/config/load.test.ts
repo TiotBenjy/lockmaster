@@ -134,6 +134,33 @@ describe('loadConfig', () => {
     }
   });
 
+  it('résout « lien/.. » comme le noyau : depuis la cible réelle du lien, pas lexicalement', () => {
+    const { root, cleanup } = makeTree({ 'data/sub/keep': '', 'data/master.key': 'x', 'etc/keep': '' });
+    try {
+      symlinkSync(`${root}/data/sub`, `${root}/etc/lnk`);
+      const file = `${root}/etc/lockmaster.toml`;
+      const toml = MINIMAL_TOML.replace('data_dir = "/var/lib/lockmaster"', `data_dir = "${root}/data"`);
+      writeFileSync(file, `${toml}\n[security]\nmaster_key_file = "${root}/etc/lnk/../master.key"\n`);
+      expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe('CONFIG_INVALID');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("résout la cible relative d'un lien pendant depuis le dossier RÉEL qui le contient", () => {
+    const { root, cleanup } = makeTree({ 'opt/data/keep': '', 'opt/cfg/keep': '', 'etc/keep': '' });
+    try {
+      symlinkSync(`${root}/opt/cfg`, `${root}/etc/lockmaster`);
+      symlinkSync('../data/master.key', `${root}/opt/cfg/master.key`);
+      const file = `${root}/etc/lockmaster.toml`;
+      const toml = MINIMAL_TOML.replace('data_dir = "/var/lib/lockmaster"', `data_dir = "${root}/opt/data"`);
+      writeFileSync(file, `${toml}\n[security]\nmaster_key_file = "${root}/etc/lockmaster/master.key"\n`);
+      expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe('CONFIG_INVALID');
+    } finally {
+      cleanup();
+    }
+  });
+
   it("indique la clé fautive dans le message d'erreur", () => {
     const { file, cleanup } = withFile(`${MINIMAL_TOML}\n[http]\nrequest_timeout = "15 minutes"\n`);
     try {

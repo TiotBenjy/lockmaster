@@ -4,8 +4,8 @@ import { parse as parseToml } from 'smol-toml';
 import type { z } from 'zod';
 import { LockmasterError } from '../domain/errors.js';
 import { applyEnvOverrides } from './env.js';
+import { isInsideReally } from './real-path.js';
 import { type Config, configSchema } from './schema.js';
-import { isInsideReally } from './secret-file.js';
 
 export const DEFAULT_CONFIG_PATH = '/etc/lockmaster/lockmaster.toml';
 const MAX_CONFIG_BYTES = 1024 * 1024;
