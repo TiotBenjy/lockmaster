@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, statSync, symlinkSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SystemAccounts } from '../../src/cli/accounts.js';
@@ -33,7 +33,7 @@ function fakePrivileges(onEnter: () => void = () => {}): FakePrivileges {
         events.push('exit');
       }
     },
-    chown: (path, owner) => {
+    chownDirectory: (path, owner) => {
       events.push(`chown:${path}:${owner.uid}`);
     },
   };
@@ -48,9 +48,15 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function setup() {
+/** Installation de test ; `dataDirUnderRoot` remplace « data » comme chemin de data_dir. */
+async function setup(dataDirUnderRoot?: string) {
   const install = installation(await freePort());
   cleanups.push(install.cleanup);
+  if (dataDirUnderRoot) {
+    const text = readFileSync(install.config, 'utf8');
+    writeFileSync(install.config, text.replace(`${install.root}/data"`, `${install.root}/${dataDirUnderRoot}"`));
+    install.dataDir = join(install.root, dataDirUnderRoot);
+  }
   let out = '';
   const ctx: CommandContext = {
     runtime: {
@@ -118,5 +124,33 @@ describe('SEC-07 : lockmaster init en root ne suit aucun lien de data_dir', () =
     expect(await codeOf(initCommand(ctx, { accounts: accounts(otherService), privileges: fakePrivileges() }))).toBe(
       'DATA_DIR_UNSAFE',
     );
+  });
+
+  it('refuse un data_dir dont un dossier parent est un lien, sans rien créer à sa cible', async () => {
+    const { ctx, root } = await setup('lien/data');
+    mkdirSync(join(root, 'ailleurs'));
+    symlinkSync(join(root, 'ailleurs'), join(root, 'lien'));
+    expect(await codeOf(initCommand(ctx, { accounts: accounts(), privileges: fakePrivileges() }))).toBe(
+      'DATA_DIR_UNSAFE',
+    );
+    expect(existsSync(join(root, 'ailleurs', 'data'))).toBe(false);
+  });
+
+  it('refuse un data_dir dont un dossier parent est modifiable par le groupe', async () => {
+    const { ctx, root } = await setup('ouvert/data');
+    mkdirSync(join(root, 'ouvert'));
+    chmodSync(join(root, 'ouvert'), 0o770);
+    expect(await codeOf(initCommand(ctx, { accounts: accounts(), privileges: fakePrivileges() }))).toBe(
+      'DATA_DIR_UNSAFE',
+    );
+    expect(existsSync(join(root, 'ouvert', 'data'))).toBe(false);
+  });
+
+  it('ne crée pas de dossiers intermédiaires en root : le parent de data_dir doit exister', async () => {
+    const { ctx, root } = await setup('absent/data');
+    expect(await codeOf(initCommand(ctx, { accounts: accounts(), privileges: fakePrivileges() }))).toBe(
+      'DATA_DIR_UNSAFE',
+    );
+    expect(existsSync(join(root, 'absent'))).toBe(false);
   });
 });

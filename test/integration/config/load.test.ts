@@ -65,14 +65,30 @@ describe('loadConfig', () => {
   it('résout les chemins relatifs par rapport au dossier du fichier de configuration', () => {
     const toml = MINIMAL_TOML.replace('data_dir = "/var/lib/lockmaster"', 'data_dir = "./.data"').replace(
       'path = "/srv/lockmaster-repo"',
-      'path = "../repo"',
+      'path = "repo"',
     );
     const { file, root, cleanup } = withFile(`${toml}\n[security]\nmaster_key_file = "keys/master.key"\n`);
     try {
       const config = loadConfig({ path: file, env: {} });
       expect(config.server.data_dir).toBe(`${root}/etc/.data`);
       expect(config.security.master_key_file).toBe(`${root}/etc/keys/master.key`);
-      expect(config.publish.targets[0]).toMatchObject({ path: `${root}/repo` });
+      expect(config.publish.targets[0]).toMatchObject({ path: `${root}/etc/repo` });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('refuse « .. » dans un chemin relatif, et ne suit pas un lien final du chemin relatif', () => {
+    const { file, root, cleanup } = withFile(MINIMAL_TOML);
+    try {
+      const withPath = (key: string) =>
+        writeFileSync(file, `${MINIMAL_TOML}\n[security]\nmaster_key_file = "${key}"\n`);
+      withPath('../master.key');
+      expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe('CONFIG_INVALID');
+      // Lien pendant posé à la place de la clé : le chemin reste celui du lien (O_NOFOLLOW le refusera).
+      symlinkSync(`${root}/ailleurs.key`, `${root}/etc/lien.key`);
+      withPath('lien.key');
+      expect(loadConfig({ path: file, env: {} }).security.master_key_file).toBe(`${root}/etc/lien.key`);
     } finally {
       cleanup();
     }

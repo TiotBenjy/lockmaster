@@ -40,8 +40,9 @@ export function readTomlFile(path: string): Record<string, unknown> {
 }
 
 /**
- * Rend absolus les chemins relatifs du document, par rapport à `baseDir`, comme le noyau les
- * résoudrait (« .. » après un lien compris). Un chemin absolu contenant « .. » est refusé par le schéma.
+ * Rend absolus les chemins relatifs du document : simple concaténation au dossier RÉEL du fichier
+ * (`baseDir`), sans suivre les liens de la valeur (un lien final reste un lien, refusé ensuite par
+ * O_NOFOLLOW à la création). « .. » est refusé ici, et dans les chemins absolus par le schéma.
  */
 export function resolveRelativePaths(value: unknown, baseDir: string, key = ''): unknown {
   if (Array.isArray(value)) return value.map((item) => resolveRelativePaths(item, baseDir));
@@ -51,7 +52,10 @@ export function resolveRelativePaths(value: unknown, baseDir: string, key = ''):
     );
   }
   if (typeof value === 'string' && value !== '' && PATH_KEY.test(key) && !isAbsolute(value)) {
-    return realpathLenient(join(baseDir, value));
+    if (value.split('/').includes('..')) {
+      throw new LockmasterError('CONFIG_INVALID', `${key} : segment « .. » interdit dans un chemin (« ${value} »)`);
+    }
+    return join(baseDir, value);
   }
   return value;
 }
