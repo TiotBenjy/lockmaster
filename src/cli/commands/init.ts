@@ -1,31 +1,38 @@
-import { chownSync, existsSync, lstatSync, mkdirSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync } from 'node:fs';
 import { isInsideReally } from '../../config/real-path.js';
 import type { Config } from '../../config/schema.js';
-import { readSecretFile } from '../../config/secret-file.js';
+import { readSecretFile, type SecretFileOptions } from '../../config/secret-file.js';
 import { generateMasterKeyText, parseMasterKey } from '../../crypto/master-key.js';
 import { databasePath, markInitialized, openDatabase } from '../../db/connection.js';
 import { LockmasterError } from '../../domain/errors.js';
 import { type SystemAccounts, systemAccounts } from '../accounts.js';
 import { type CommandContext, loadContextConfig } from '../context.js';
-import { type FileOwner, writeNewFile } from '../files.js';
+import { writeNewFile } from '../files.js';
+import { type Identity, type Privileges, processPrivileges } from '../privileges.js';
 
 // `lockmaster init` (version M0) : clé maîtresse de l'application et base initialisée. Idempotent :
-// ne remplace jamais une clé ni une base existante. Lancé en root (paquets), il pose les
-// propriétaires attendus (root:lockmaster 0440 pour la clé, lockmaster pour les données).
+// ne remplace jamais une clé ni une base existante. Lancé en root (paquets) : clé root:lockmaster
+// 0440 ; la base est créée sous l'identité du service (src/cli/privileges.ts), jamais en root.
 // Initialisation du signataire et création du premier administrateur : jalon M2.
 
 const SERVICE_ACCOUNT = 'lockmaster';
 const MIN_ADMIN_PASSWORD_LENGTH = 12;
+const DATABASE_FILES = ['', '-wal', '-shm', '-journal'];
 
-interface Ownership {
-  key?: FileOwner;
-  data?: FileOwner;
+export interface InitDeps {
+  accounts: SystemAccounts;
+  privileges: Privileges;
 }
 
-function ownershipFor(asRoot: boolean, accounts: SystemAccounts): Ownership {
-  if (!asRoot) return {};
-  const service = accounts.userIds(SERVICE_ACCOUNT);
-  return { key: { uid: 0, gid: accounts.groupId(SERVICE_ACCOUNT) }, data: service };
+/** En root : identités en jeu. Hors root : l'init travaille sous le compte courant. */
+interface RootMode {
+  privileges: Privileges;
+  service: Identity;
+  keyOwner: Identity;
+}
+
+function unsafe(path: string, reason: string): LockmasterError {
+  return new LockmasterError('DATA_DIR_UNSAFE', `${path} : ${reason} ; refus de continuer en root`);
 }
 
 function checkAdminPassword(path: string): void {
@@ -38,51 +45,86 @@ function checkAdminPassword(path: string): void {
   }
 }
 
-function ensureMasterKey(config: Config, owner: FileOwner | undefined): string {
+function ensureMasterKey(config: Config, root: RootMode | undefined): string {
   const path = config.security.master_key_file;
   if (existsSync(path)) {
-    parseMasterKey(readSecretFile(path));
+    const options: SecretFileOptions = root
+      ? {
+          allowedUids: [root.privileges.superuser.uid],
+          allowedGids: [root.privileges.superuser.gid, root.keyOwner.gid],
+        }
+      : {};
+    parseMasterKey(readSecretFile(path, options));
     return `clé maîtresse existante conservée : ${path}`;
   }
   // Revérifiée juste avant la création : jamais sous data_dir, même à travers un lien.
   if (isInsideReally(config.server.data_dir, path)) {
     throw new LockmasterError('CONFIG_INVALID', 'security.master_key_file ne doit pas se trouver sous server.data_dir');
   }
-  writeNewFile(path, generateMasterKeyText(), owner ? 0o440 : 0o400, owner);
+  writeNewFile(path, generateMasterKeyText(), root ? 0o440 : 0o400, root?.keyOwner);
   return `clé maîtresse créée : ${path}`;
 }
 
-function ensureDataDir(dir: string, owner: FileOwner | undefined): void {
-  if (existsSync(dir)) {
-    if (!lstatSync(dir).isDirectory()) throw new LockmasterError('DATA_DIR_INVALID', `${dir} n'est pas un dossier`);
+function ensureDataDir(dir: string, root: RootMode | undefined): void {
+  if (!existsSync(dir) && !isLink(dir)) {
+    mkdirSync(dir, { recursive: true, mode: 0o750 });
+    if (root) root.privileges.chown(dir, root.service);
     return;
   }
-  mkdirSync(dir, { recursive: true, mode: 0o750 });
-  if (owner) chownSync(dir, owner.uid, owner.gid);
+  const stat = lstatSync(dir);
+  if (!stat.isDirectory()) throw new LockmasterError('DATA_DIR_INVALID', `${dir} n'est pas un dossier`);
+  if (!root) return;
+  if (stat.uid !== root.service.uid)
+    throw unsafe(dir, `propriétaire ${stat.uid}, attendu le compte ${SERVICE_ACCOUNT}`);
+  if ((stat.mode & 0o022) !== 0) throw unsafe(dir, 'modifiable par le groupe ou par « others »');
 }
 
-function ensureDatabase(config: Config, owner: FileOwner | undefined): string {
-  const path = databasePath(config.server.data_dir);
-  const existed = existsSync(path);
-  const db = openDatabase(path, { create: true });
+function isLink(path: string): boolean {
   try {
-    markInitialized(db);
-  } finally {
-    db.close();
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
   }
-  if (owner) chownSync(path, owner.uid, owner.gid);
+}
+
+function ensureDatabase(config: Config, root: RootMode | undefined): string {
+  const path = databasePath(config.server.data_dir);
+  for (const suffix of DATABASE_FILES) {
+    if (isLink(`${path}${suffix}`)) throw unsafe(`${path}${suffix}`, 'lien symbolique inattendu');
+  }
+  const existed = existsSync(path);
+  const create = () => {
+    const db = openDatabase(path, { create: true });
+    try {
+      markInitialized(db);
+    } finally {
+      db.close();
+    }
+  };
+  if (root) root.privileges.asService(root.service, create);
+  else create();
   return existed ? `base existante conservée : ${path}` : `base créée : ${path}`;
 }
 
-export async function initCommand(ctx: CommandContext, accounts = systemAccounts()): Promise<number> {
+export async function initCommand(
+  ctx: CommandContext,
+  deps: InitDeps = { accounts: systemAccounts(), privileges: processPrivileges() },
+): Promise<number> {
   const config = loadContextConfig(ctx);
   const passwordFile = ctx.options['admin-password-file'];
   // Contrôles d'abord, effets ensuite : un refus ne laisse aucune installation à moitié faite.
   if (typeof passwordFile === 'string') checkAdminPassword(passwordFile);
-  const owners = ownershipFor(ctx.runtime.uid === 0, accounts);
-  const lines = [ensureMasterKey(config, owners.key)];
-  ensureDataDir(config.server.data_dir, owners.data);
-  lines.push(ensureDatabase(config, owners.data));
+  const root: RootMode | undefined =
+    ctx.runtime.uid === 0
+      ? {
+          privileges: deps.privileges,
+          service: deps.accounts.userIds(SERVICE_ACCOUNT),
+          keyOwner: { uid: deps.privileges.superuser.uid, gid: deps.accounts.groupId(SERVICE_ACCOUNT) },
+        }
+      : undefined;
+  const lines = [ensureMasterKey(config, root)];
+  ensureDataDir(config.server.data_dir, root);
+  lines.push(ensureDatabase(config, root));
   if (typeof passwordFile === 'string') {
     lines.push('mot de passe administrateur vérifié ; le compte sera créé quand le schéma des comptes existera');
   }
