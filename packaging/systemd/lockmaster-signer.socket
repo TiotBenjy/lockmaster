@@ -1,0 +1,13 @@
+[Unit]
+Description=lockmaster - socket du service de signature
+Documentation=file:///usr/share/doc/lockmaster/adr/0009-processus-signataire-separe.md
+
+[Socket]
+ListenStream=/run/lockmaster-sign/sign.sock
+SocketUser=lockmaster-signer
+SocketGroup=lockmaster-sign
+SocketMode=0660
+Accept=no
+
+[Install]
+WantedBy=sockets.target

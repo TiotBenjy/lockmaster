@@ -1,0 +1,30 @@
+# Compte lockmaster-signer : service de signature, seul détenteur des clés (ADR-0009).
+[Unit]
+Description=lockmaster - service de signature
+
+[Container]
+ContainerName=lockmaster-signer
+Image=ghcr.io/tiotbenjy/lockmaster:1
+Exec=signer serve --socket /run/lockmaster-sign/sign.sock
+# Le processus a l'UID hôte de lockmaster-signer : le socket lui appartient, groupe hérité du dossier.
+UserNS=keep-id
+# Aucun réseau : il ne parle qu'au socket Unix.
+Network=none
+Volume=/run/lockmaster-sign:/run/lockmaster-sign
+Volume=lockmaster-signer-keys.volume:/var/lib/lockmaster-signer
+Secret=lockmaster-signer-master-key,type=mount,target=/run/secrets/master_key
+Environment=LOCKMASTER_SIGNER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key
+ReadOnly=true
+Tmpfs=/tmp
+DropCapability=ALL
+NoNewPrivileges=true
+# Même niveau SELinux que le conteneur de l'application, sinon la connexion au socket est refusée
+# (catégories MCS aléatoires par défaut en rootless). À valider en M0 sur RHEL/Fedora.
+SecurityLabelLevel=s0:c100,c200
+
+[Service]
+Restart=on-failure
+RestartPreventExitStatus=78
+
+[Install]
+WantedBy=default.target

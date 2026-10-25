@@ -1,0 +1,3 @@
+# Fichiers ignorés par git recopiés dans chaque worktree créé par Claude Code.
+# Uniquement la configuration de développement jetable (jamais de vrai secret).
+lockmaster.dev.toml

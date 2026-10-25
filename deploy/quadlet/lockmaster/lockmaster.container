@@ -1,0 +1,38 @@
+# Compte lockmaster : application (API, UI, scans, publication). N'a AUCUN accès aux clés de signature.
+[Unit]
+Description=lockmaster - application
+Requires=clamav.service
+After=clamav.service
+
+[Container]
+ContainerName=lockmaster
+Image=ghcr.io/tiotbenjy/lockmaster:1
+Exec=serve
+UserNS=keep-id
+# Conserve le groupe hôte lockmaster-sign (seul moyen de joindre le socket du signataire). Runtime crun requis.
+PodmanArgs=--group-add keep-groups
+Network=lockmaster.network
+Network=lockmaster-egress.network
+PublishPort=127.0.0.1:8080:8080
+Volume=lockmaster-data.volume:/var/lib/lockmaster
+Volume=repo-public.volume:/srv/lockmaster-repo
+Volume=clamav-sock.volume:/run/clamav
+Volume=/run/lockmaster-sign:/run/lockmaster-sign
+Volume=%h/lockmaster.toml:/etc/lockmaster/lockmaster.toml:ro
+Secret=lockmaster-master-key,type=mount,target=/run/secrets/master_key
+Environment=LOCKMASTER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key
+Environment=LOCKMASTER__SIGNER__SOCKET=/run/lockmaster-sign/sign.sock
+ReadOnly=true
+Tmpfs=/tmp
+DropCapability=ALL
+NoNewPrivileges=true
+SecurityLabelLevel=s0:c100,c200
+HealthCmd=/app/node/bin/node /app/lockmaster.mjs healthcheck
+HealthInterval=30s
+
+[Service]
+Restart=on-failure
+RestartPreventExitStatus=78
+
+[Install]
+WantedBy=default.target

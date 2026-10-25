@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(pnpm install --frozen-lockfile)",
+      "Bash(pnpm check)",
+      "Bash(pnpm test)",
+      "Bash(pnpm build)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm exec tsc *)",
+      "Bash(pnpm exec biome *)",
+      "Bash(pnpm why *)",
+      "Bash(pnpm ls *)",
+      "Bash(node dist/lockmaster.mjs *)",
+      "Bash(git status *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git diff)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(ls *)",
+      "Bash(wc *)",
+      "Bash(git commit *)",
+      "Bash(git merge *)",
+      "Bash(git worktree *)",
+      "Bash(git branch *)",
+      "Bash(git rev-parse *)",
+      "Bash(git config --get *)",
+      "Bash(git stash *)",
+      "Bash(pnpm install)"
+    ],
+    "ask": [
+      "Bash(pnpm vitest *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm remove *)",
+      "Bash(pnpm update *)",
+      "Bash(pnpm test:e2e *)",
+      "Bash(pnpm package *)",
+      "Bash(pnpm image *)",
+      "Bash(git reset *)",
+      "Bash(git rebase *)",
+      "Bash(docker *)",
+      "Bash(podman *)",
+      "Bash(curl *)",
+      "Bash(sudo *)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(secrets/**)",
+      "Read(**/*.key)",
+      "Read(**/master.key)",
+      "Read(**/*.pem)",
+      "Read(.data/**)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(rm -rf /*)",
+      "Bash(npm install *)",
+      "Bash(npm i *)",
+      "Bash(yarn *)",
+      "Read(deploy/secrets/**)",
+      "Read(**/*_ed25519)",
+      "Read(**/*_rsa)",
+      "Read(**/id_*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.npmrc)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.gnupg/**)",
+      "Bash(git push *)",
+      "Bash(git push)",
+      "Bash(git commit --no-verify *)",
+      "Bash(git config --global *)",
+      "Bash(git config --system *)",
+      "Edit(.claude/settings.json)",
+      "Write(.claude/settings.json)",
+      "Edit(.claude/hooks/**)",
+      "Write(.claude/hooks/**)",
+      "Edit(.claude/agents/**)",
+      "Write(.claude/agents/**)",
+      "Edit(.claude/skills/**)",
+      "Write(.claude/skills/**)",
+      "Edit(.claude/rules/**)",
+      "Write(.claude/rules/**)",
+      "Edit(.worktreeinclude)",
+      "Write(.worktreeinclude)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-forbidden-patterns.mjs",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.mjs",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/git-guard.mjs",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-file.mjs",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "EnterWorktree",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-worktree-source.mjs",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-on-stop.mjs",
+            "timeout": 480
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/record-worktree-source.mjs",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "worktree": {
+    "baseRef": "head"
+  }
+}

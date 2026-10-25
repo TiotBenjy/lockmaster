@@ -1,0 +1,3 @@
+# Réseau du serveur de dépôt : aucune route vers l'application ni vers clamav (SEC-14).
+[Network]
+NetworkName=lockmaster-repo

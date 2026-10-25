@@ -1,0 +1,30 @@
+# signer.toml : configuration du service de signature lockmaster-signer (ADR-0009).
+# Emplacement : --config > LOCKMASTER_SIGNER_CONFIG > /etc/lockmaster-signer/signer.toml
+# (/etc/lockmaster-signer : 0750 root:lockmaster-signer). Surcharge : LOCKMASTER_SIGNER__<SECTION>__<CLE>.
+# Toute clé inconnue est une erreur. Le signataire n'a AUCUN réseau : pas d'URL ici.
+
+[server]
+data_dir = "/var/lib/lockmaster-signer"      # signer.db : clés privées chiffrées + journal de signatures (0700)
+# Socket : transmis par systemd (--socket-activation) ou créé par le signataire (--socket, mode conteneur).
+socket   = "/run/lockmaster-sign/sign.sock"
+# Groupe attendu sur le socket : le signataire vérifie après création (fstat) et refuse de démarrer
+# si le socket n'est pas exactement 0660 avec ce groupe (sauf activation par systemd, qui l'impose).
+socket_group = "lockmaster-sign"
+max_message_bytes = 16777216            # 16 MiB (en-têtes RPM et APKINDEX compris)
+request_timeout   = "30s"
+
+[security]
+# Clé maîtresse du signataire (distincte de celle de l'application) : chiffre les clés de signature.
+# Paquets : root:lockmaster-signer 0440, ou LoadCredentialEncrypted= (systemd >= 250) via un drop-in.
+master_key_file = "/etc/lockmaster-signer/master.key"
+
+[limits]
+signatures_per_minute_per_key = 120     # au-delà : refus + alerte (journal)
+max_valid_until_days          = 30      # refus d'un Release dont Valid-Until dépasse Date + 30 j
+max_clock_skew                = "5m"    # Date / revision de la demande ~heure du signataire
+
+[log]
+level  = "info"
+format = "json"                         # journald (paquets) / sortie standard (conteneur)
+# Export de chaque signature hors hôte en plus de journald : se fait au niveau de l'hôte
+# (rsyslog/journald-remote), le signataire n'ayant pas de réseau.

@@ -1,0 +1,31 @@
+# Dépendances et sorties de build
+node_modules/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+
+# Données locales de développement (base, blobs, clés générées)
+.data/
+
+# Secrets : ne jamais committer
+.env
+.env.*
+secrets/
+*.key
+*.pem
+deploy/lockmaster.toml
+
+# Préférences Claude Code personnelles
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Divers
+.DS_Store
+*.log
+
+# Worktrees de Claude Code (un par feature/fix)
+.claude/worktrees/
+
+# Python (outil de recherche du skill UI)
+__pycache__/

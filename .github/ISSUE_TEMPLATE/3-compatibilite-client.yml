@@ -1,0 +1,55 @@
+name: Compatibilité avec un client apt, dnf ou apk
+description: Un dépôt publié par Lockmaster est refusé ou mal lu par un client.
+title: "[compatibilité] "
+labels: ["compatibilité", "à trier"]
+body:
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      options:
+        - APT (.deb)
+        - RPM (.rpm)
+        - APK (.apk)
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: Client et version
+      placeholder: "debian:13, apt 3.0.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: visibilite
+    attributes:
+      label: Dépôt
+      options:
+        - Public
+        - Privé (identifiants client)
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration du client
+      description: Fichier `.sources`, `.repo` ou ligne de `/etc/apk/repositories` (identifiants masqués).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: sortie
+    attributes:
+      label: Commande et sortie complète
+      description: Par exemple `apt-get update -o Debug::Acquire::https=true`, `dnf -v makecache`, `apk -v update`.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: verifications
+    attributes:
+      label: Vérifications
+      options:
+        - label: La clé publique a été installée hors bande, comme l'indique la page « configuration client ».
+        - label: J'ai masqué les identifiants et adresses internes sensibles.
+          required: true
