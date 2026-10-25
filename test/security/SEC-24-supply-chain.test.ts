@@ -117,8 +117,10 @@ describe('SEC-24 : better-sqlite3 compilé depuis les sources', () => {
     }
   });
 
-  it('package.sh passe toujours --native à la construction', () => {
-    expect(code('packaging/package.sh')).toMatch(/scripts\/build\.mjs" --out "[^"]+" --native "\$native"/);
+  it('stage.sh (paquets et image) passe toujours --native à la construction', () => {
+    expect(code('packaging/stage.sh')).toMatch(/scripts\/build\.mjs" --out "[^"]+" --native "\$native"/);
+    expect(code('packaging/package.sh')).toMatch(/packaging_dir\/stage\.sh"/);
+    expect(code('packaging/image.sh')).toMatch(/packaging_dir\/stage\.sh"/);
   });
 });
 

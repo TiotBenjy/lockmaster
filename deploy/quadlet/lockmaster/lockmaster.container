@@ -8,7 +8,9 @@ After=clamav.service
 ContainerName=lockmaster
 Image=ghcr.io/tiotbenjy/lockmaster:1
 Exec=serve
-UserNS=keep-id
+# Compte hôte lockmaster projeté sur l'UID 10001:10101 de l'image : propriétaire des volumes nommés,
+# qui héritent des droits de l'image (/var/lib/lockmaster 10001:10101 0750).
+UserNS=keep-id:uid=10001,gid=10101
 # Conserve le groupe hôte lockmaster-sign (seul moyen de joindre le socket du signataire). Runtime crun requis.
 PodmanArgs=--group-add keep-groups
 Network=lockmaster.network
@@ -18,7 +20,8 @@ Volume=lockmaster-data.volume:/var/lib/lockmaster
 Volume=repo-public.volume:/srv/lockmaster-repo
 Volume=clamav-sock.volume:/run/clamav
 Volume=/run/lockmaster-sign:/run/lockmaster-sign
-Volume=%h/lockmaster.toml:/etc/lockmaster/lockmaster.toml:ro
+# z : label SELinux partagé, sans quoi le conteneur ne lit pas un fichier du home (RHEL/Fedora).
+Volume=%h/lockmaster.toml:/etc/lockmaster/lockmaster.toml:ro,z
 Secret=lockmaster-master-key,type=mount,target=/run/secrets/master_key
 Environment=LOCKMASTER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key
 Environment=LOCKMASTER__SIGNER__SOCKET=/run/lockmaster-sign/sign.sock
