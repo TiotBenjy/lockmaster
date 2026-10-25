@@ -1,5 +1,4 @@
-import { closeSync, constants, fstatSync, lstatSync, openSync, readlinkSync, readSync, realpathSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { LockmasterError } from '../domain/errors.js';
 
 // Lecture des fichiers secrets (*_file, clé maîtresse) : docs/02 §3.3, deploy/lockmaster.example.toml.
@@ -15,7 +14,6 @@ export interface SecretFileOptions {
 }
 
 const DEFAULT_MAX_BYTES = 64 * 1024;
-const MAX_LINK_HOPS = 40;
 
 function defaultUids(): number[] {
   const uid = process.getuid?.();
@@ -71,46 +69,4 @@ export function readSecretFile(path: string, options: SecretFileOptions = {}): B
   } finally {
     closeSync(fd);
   }
-}
-
-/**
- * Chemin réel (liens symboliques résolus) ; pour un chemin qui n'existe pas encore, résout le plus
- * proche ancêtre existant et y ajoute le reste.
- */
-export function realpathLenient(path: string, linkHops = 0): string {
-  const absolute = resolve(path);
-  const unresolvable = (reason: string) =>
-    new LockmasterError('PATH_UNRESOLVABLE', `chemin ${absolute} impossible à résoudre (${reason})`);
-  try {
-    return realpathSync(absolute);
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    // Seule l'absence est tolérée ; toute autre erreur (EACCES, ELOOP...) refuse.
-    if (code !== 'ENOENT') throw unresolvable(code ?? 'erreur inconnue');
-  }
-  let isLink = false;
-  try {
-    isLink = lstatSync(absolute).isSymbolicLink();
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== 'ENOENT') throw unresolvable(code ?? 'erreur inconnue');
-  }
-  if (isLink) {
-    // Lien pendant : on suit sa cible, là où le fichier serait créé.
-    if (linkHops >= MAX_LINK_HOPS) throw unresolvable('trop de liens symboliques');
-    return realpathLenient(resolve(dirname(absolute), readlinkSync(absolute)), linkHops + 1);
-  }
-  const parent = dirname(absolute);
-  return parent === absolute ? absolute : join(realpathLenient(parent, linkHops), basename(absolute));
-}
-
-/** Comme `isInside`, sur les chemins lexicaux et sur les chemins réels (liens résolus). */
-export function isInsideReally(parent: string, child: string): boolean {
-  return isInside(parent, child) || isInside(realpathLenient(parent), realpathLenient(child));
-}
-
-/** Vrai si `child` désigne `parent` ou un chemin situé dessous (après normalisation). */
-export function isInside(parent: string, child: string): boolean {
-  const rel = relative(resolve(parent), resolve(child));
-  return rel === '' || !(rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel));
 }

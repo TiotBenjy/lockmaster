@@ -2,7 +2,8 @@ import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { defaultAllowedGids, isInside, readSecretFile } from '../../../src/config/secret-file.js';
+import { isInside } from '../../../src/config/real-path.js';
+import { defaultAllowedGids, readSecretFile } from '../../../src/config/secret-file.js';
 import { LockmasterError } from '../../../src/domain/errors.js';
 
 let dir: string;
