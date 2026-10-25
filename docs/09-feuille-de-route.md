@@ -114,8 +114,8 @@ Critère de sortie, en CI, pour chacun des trois livrables :
 
 Exigences `docs/11` : SEC-22 (mémoire des décompresseurs : fenêtre zstd, limite xz), SEC-01 (décompression en flux de control/data tar, payload cpio, membres apk, réutilisée par le scan).
 
-- [ ] `formats/common` : lecteur ar, tar en flux (`tar-stream`), gzip/zstd (`node:zlib`),
-      xz (bibliothèque choisie et justifiée par ADR), `limits.ts` avec compteur de ratio
+- [ ] `formats/common` : lecteur ar, lecteur tar maison, gzip/zstd (`node:zlib`), décodeurs xz
+      (portage d'xz-embedded) et bzip2 maison (ADR-0015), `limits.ts` avec compteur de ratio
 - [ ] `formats/deb` : parse `.deb` -> `ParsedPackage` ; parseur/sérialiseur RFC 822 Debian ;
       `compareDebVersion` + vecteurs dpkg
 - [ ] `formats/rpm` : lead, signature header, header ; tags nécessaires ; `headerRange` ;
