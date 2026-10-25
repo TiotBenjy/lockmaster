@@ -1,0 +1,26 @@
+# Relecture humaine obligatoire (SEC-19). Propriétaire du dépôt : TiotBenjy.
+# Activer « Require review from Code Owners » dans la protection de la branche principale.
+# Si d'autres mainteneurs rejoignent le projet, créer une organisation et des équipes
+# (par exemple mainteneurs et securite) et les ajouter ci-dessous.
+
+*                         @TiotBenjy
+
+# Garde-fous de développement et chaîne de livraison
+/.claude/                 @TiotBenjy
+/.github/                 @TiotBenjy
+/test/security/           @TiotBenjy
+/packaging/versions.env   @TiotBenjy
+/CLAUDE.md                @TiotBenjy
+/SECURITY.md              @TiotBenjy
+
+# Code sensible (CLAUDE.md §Méthode, point 4)
+/src/crypto/              @TiotBenjy
+/src/signer/              @TiotBenjy
+/src/signer-client/       @TiotBenjy
+/src/auth/                @TiotBenjy
+/src/pipeline/            @TiotBenjy
+/src/scan/                @TiotBenjy
+/src/formats/             @TiotBenjy
+/src/publish/             @TiotBenjy
+/src/net/                 @TiotBenjy
+/deploy/nginx/            @TiotBenjy

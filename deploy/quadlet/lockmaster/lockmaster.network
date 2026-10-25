@@ -1,0 +1,5 @@
+# Réseau interne application <-> clamav (aucun accès extérieur). Les sorties de l'application
+# (amont, SMTP, cibles rsync) passent par le réseau par défaut de Podman, ajouté dans lockmaster.container.
+[Network]
+NetworkName=lockmaster-scan
+Internal=true

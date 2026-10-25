@@ -1,0 +1,28 @@
+name: Demande de fonctionnalité
+description: Proposer une évolution de Lockmaster.
+title: "[fonctionnalité] "
+labels: ["fonctionnalité", "à trier"]
+body:
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Besoin
+      description: Le problème que vous rencontrez aujourd'hui, et qui est concerné (exploitant, équipe sécurité, CI, clients apt/dnf/apk).
+    validations:
+      required: true
+  - type: textarea
+    id: proposition
+    attributes:
+      label: Proposition
+      description: Ce que Lockmaster devrait faire. Une maquette ou un exemple de commande aide beaucoup.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives envisagées
+  - type: textarea
+    id: securite
+    attributes:
+      label: Effet sur la sécurité
+      description: La proposition touche-t-elle au pipeline, aux signatures, aux droits ou à l'audit ? Comment rester fail-closed ?

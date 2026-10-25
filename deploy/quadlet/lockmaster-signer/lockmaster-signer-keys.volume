@@ -1,0 +1,3 @@
+# Clés de signature chiffrées et journal de signatures du signataire (compte lockmaster-signer).
+[Volume]
+VolumeName=lockmaster-signer-keys
