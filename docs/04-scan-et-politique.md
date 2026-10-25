@@ -63,7 +63,8 @@ chaque paquet, Lockmaster envoie à clamd **plusieurs flux**, chacun dans sa pro
 | `.apk` | le fichier brut ; chaque membre gzip décompressé |
 
 - Les limites de `docs/02` §3.2 s'appliquent à la décompression (ratio, taille, mémoire du
-  décodeur). Compression inconnue ou limite atteinte -> `error` (jamais « propre »).
+  décodeur). Compression inconnue ou limite atteinte -> `error` (jamais « propre »). Le format lzma
+  historique (`data.tar.lzma`, payload rpm `lzdio`) n'est pas pris en charge en v1 (ADR-0015).
 - Le résultat est `FOUND` si **un** flux l'est ; `pass` seulement si **tous** les flux sont `OK`.
 - L'artefact re-signé (mode `resign`) est lui aussi analysé avant publication (SEC-25).
 - `zINSTREAM\0`, morceaux `<uint32 BE longueur><données>` <= 64 KiB, terminé par `0x00000000` ;
