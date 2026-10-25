@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import os from 'node:os';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startServer } from '../../../src/cli/commands/serve.js';
 import { loadConfig } from '../../../src/config/load.js';
 import { cli, freePort, installation } from '../../helpers/cli.js';
@@ -30,5 +31,24 @@ describe('serveur démarré après init', () => {
     await running.stop();
     stopped = true;
     expect((await cli(['healthcheck', '--config', install.config])).code).toBe(1);
+  });
+
+  // lockmaster.service limite les familles d'adresses (RestrictAddressFamilies=AF_UNIX AF_INET
+  // AF_INET6) : lister les interfaces réseau (netlink) y échoue avec EAFNOSUPPORT.
+  it('écoute sur toutes les interfaces sans énumérer les interfaces réseau', async () => {
+    const install = installation(await freePort());
+    cleanups.push(install.cleanup);
+    expect((await cli(['init', '--non-interactive', '--config', install.config])).code).toBe(0);
+    const port = await freePort();
+    const config = loadConfig({ path: install.config, env: { LOCKMASTER__HTTP__LISTEN: `0.0.0.0:${port}` } });
+    const interfaces = vi.spyOn(os, 'networkInterfaces').mockImplementation(() => {
+      throw Object.assign(new Error('uv_interface_addresses'), { code: 'EAFNOSUPPORT' });
+    });
+    cleanups.push(() => interfaces.mockRestore());
+
+    const running = await startServer(config);
+    cleanups.push(() => running.stop());
+    expect(await (await fetch(`http://127.0.0.1:${port}/healthz`)).text()).toBe('ok');
+    expect(interfaces).not.toHaveBeenCalled();
   });
 });
