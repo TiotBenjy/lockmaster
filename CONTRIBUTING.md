@@ -12,7 +12,7 @@ valent aussi pour eux, sont dans `CONVENTIONS.md` (stack, invariants de sécurit
 
 ## Environnement
 
-Node.js 24 LTS, pnpm 10, Docker ou Podman (tests e2e), Python 3 (outil de recherche du skill UI, en
+Node.js 24 LTS, pnpm 12 (version épinglée par `packageManager`), Docker ou Podman (tests e2e), Python 3 (outil de recherche du skill UI, en
 développement seulement). Travaillez dans une VM ou un conteneur jetable, sans vrai secret.
 
 ```bash

@@ -1,10 +1,13 @@
-# Réglages pnpm (pnpm 10 lit sa configuration ici).
+# Réglages pnpm (pnpm 12 lit sa configuration ici, ADR-0014).
 # Chaîne d'approvisionnement (docs/02 A13, SEC-24) :
-#  - seuls ces paquets peuvent exécuter un script d'installation ;
-#  - une version publiée depuis moins de 7 jours (10 080 minutes) n'est pas installée.
-onlyBuiltDependencies:
-  - better-sqlite3
-  - esbuild
+#  - seuls ces paquets peuvent exécuter un script d'installation ; tout autre script est refusé et
+#    fait échouer l'installation (ERR_PNPM_IGNORED_BUILDS). « onlyBuiltDependencies » de pnpm 10 est
+#    ignoré sans avertissement depuis pnpm 11 : ne pas le réintroduire ;
+#  - une version publiée depuis moins de 7 jours (10 080 minutes) n'est pas installée (strict : une
+#    valeur explicite rend minimumReleaseAgeStrict vrai).
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
 
 minimumReleaseAge: 10080
 

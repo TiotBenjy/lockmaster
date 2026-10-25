@@ -127,18 +127,29 @@ describe('SEC-24 : better-sqlite3 compilé depuis les sources', () => {
 describe('SEC-24 : pnpm', () => {
   const workspace = read('pnpm-workspace.yaml');
 
-  it('packageManager épinglé avec son empreinte', () => {
-    expect(packageJson.packageManager).toMatch(/^pnpm@10\.\d+\.\d+\+sha512\.[0-9a-f]{128}$/);
+  it('packageManager épinglé avec son empreinte, la même version dans le lockfile (ADR-0014)', () => {
+    const pinned = /^pnpm@(12\.\d+\.\d+)\+sha512\.[0-9a-f]{128}$/.exec(packageJson.packageManager ?? '');
+    expect(pinned, packageJson.packageManager).not.toBeNull();
+    const lockfile = read('pnpm-lock.yaml');
+    expect(lockfile).toMatch(
+      new RegExp(
+        `packageManagerDependencies:\\n {6}pnpm:\\n {8}specifier: ${pinned?.[1]}\\n {8}version: ${pinned?.[1]}\\n`,
+      ),
+    );
   });
 
   it('seuls better-sqlite3 et esbuild exécutent un script d installation', () => {
-    const list = /^onlyBuiltDependencies:\n((?: {2}- .+\n)+)/m.exec(workspace)?.[1] ?? '';
-    expect(
-      list
-        .trim()
-        .split('\n')
-        .map((line) => line.replace(/^\s*- /, '')),
-    ).toEqual(['better-sqlite3', 'esbuild']);
+    const table = /^allowBuilds:\n((?: {2}\S.*\n)+)/m.exec(workspace)?.[1] ?? '';
+    expect(table.split('\n').filter(Boolean)).toEqual(['  better-sqlite3: true', '  esbuild: true']);
+    // Réglages qui élargiraient ou remplaceraient cette liste ; onlyBuiltDependencies est ignoré par
+    // pnpm 12 et donnerait l'illusion d'un contrôle.
+    expect(workspace).not.toMatch(
+      /^\s*(onlyBuiltDependencies|neverBuiltDependencies|dangerouslyAllowAllBuilds|permissions):/m,
+    );
+  });
+
+  it('le délai de publication reste strict', () => {
+    expect(workspace).not.toMatch(/^\s*minimumReleaseAgeStrict: *false/m);
   });
 
   it('minimumReleaseAge d au moins 7 jours, exceptions limitées à des versions exactes', () => {
