@@ -21,11 +21,13 @@ describe('activationFd', () => {
 });
 
 describe('assertUnixListener', () => {
-  it('accepte un socket Unix (adresse sous forme de chemin)', () => {
+  it('accepte un socket Unix : chemin, ou null pour un socket Unix hérité par descripteur', () => {
     expect(() => assertUnixListener('/run/lockmaster-sign/sign.sock')).not.toThrow();
+    // Node renvoie null pour un socket Unix reçu par descripteur (pas de getsockname sur un Pipe).
+    expect(() => assertUnixListener(null)).not.toThrow();
   });
 
-  it.each([[{ address: '0.0.0.0', family: 'IPv4', port: 9000 }], [null], ['']])(
+  it.each([[{ address: '0.0.0.0', family: 'IPv4', port: 9000 }], [{ address: '::1', family: 'IPv6', port: 1 }]])(
     "refuse un descripteur transmis qui n'est pas un socket Unix : %j",
     (address) => {
       expect(() => assertUnixListener(address)).toThrow(LockmasterError);

@@ -17,7 +17,12 @@ export const DEFAULT_SIGNER_CONFIG_PATH = '/etc/lockmaster-signer/signer.toml';
 export const signerConfigSchema = z.strictObject({
   server: z.strictObject({ data_dir: path('/var/lib/lockmaster-signer') }).prefault({}),
   security: z.strictObject({ master_key_file: path('/etc/lockmaster-signer/master.key') }).prefault({}),
-  socket: z.strictObject({ path: path('/run/lockmaster-sign/sign.sock'), timeout: duration('30s') }).prefault({}),
+  socket: z
+    .strictObject({
+      path: path('/run/lockmaster-sign/sign.sock').refine((value) => value !== '', 'chemin du socket obligatoire'),
+      timeout: duration('30s'),
+    })
+    .prefault({}),
   log: z
     .strictObject({
       level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
