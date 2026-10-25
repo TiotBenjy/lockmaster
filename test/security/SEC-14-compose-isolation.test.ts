@@ -2,10 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Séparation du signataire (ADR-0009) et isolation réseau (SEC-14) dans les déploiements conteneur,
+// SEC-14 et ADR-0009 : séparation du signataire et isolation réseau dans les déploiements conteneur,
 // vérifiées sur les fichiers : un montage ou un réseau ajouté au mauvais service fait échouer la CI.
 
-const ROOT = join(import.meta.dirname, '../../..');
+const ROOT = join(import.meta.dirname, '../..');
 const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
 const compose = read('deploy/compose.yaml');
 const SERVICES = ['signer', 'lockmaster', 'clamav', 'repo'];
@@ -16,7 +16,7 @@ function block(name: string): string {
   return found;
 }
 
-/** Sources des montages d'un service (avant le premier « : »), sans commentaires. */
+/** Montages d'un service (« source:cible:options »), sans commentaires. */
 function mounts(name: string): string[] {
   const list = /^ {4}volumes:\n((?: {6}- .*\n|\s*#.*\n)+)/m.exec(block(name))?.[1] ?? '';
   return [...list.matchAll(/^ {6}- ([^\s#]+)/gm)].map(([, mount]) => mount as string);
@@ -29,7 +29,7 @@ function networks(name: string): string[] {
 
 const owners = (needle: string) => SERVICES.filter((name) => mounts(name).some((mount) => mount.includes(needle)));
 
-describe('compose : séparation du signataire (ADR-0009)', () => {
+describe('SEC-14 compose : séparation du signataire (ADR-0009)', () => {
   it('le volume et la clé maîtresse du signataire ne sont montés que dans signer', () => {
     expect(owners('signer-keys')).toEqual(['signer']);
     expect(owners('signer-master.key')).toEqual(['signer']);
@@ -56,8 +56,8 @@ describe('compose : séparation du signataire (ADR-0009)', () => {
   });
 });
 
-describe('compose : réseaux (SEC-14)', () => {
-  it('le signataire n a aucun réseau', () => {
+describe('SEC-14 compose : réseaux', () => {
+  it("le signataire n'a aucun réseau", () => {
     expect(block('signer')).toMatch(/^ {4}network_mode: none/m);
     expect(networks('signer')).toEqual([]);
   });
@@ -74,11 +74,11 @@ describe('compose : réseaux (SEC-14)', () => {
   });
 });
 
-describe('quadlets : séparation par compte (ADR-0009)', () => {
+describe('SEC-14 quadlets : séparation par compte (ADR-0009)', () => {
   const signer = read('deploy/quadlet/lockmaster-signer/lockmaster-signer.container');
   const app = read('deploy/quadlet/lockmaster/lockmaster.container');
 
-  it('le signataire n a aucun réseau et ne monte que son volume et le dossier du socket', () => {
+  it("le signataire n'a aucun réseau et ne monte que son volume et le dossier du socket", () => {
     expect(signer).toMatch(/^Network=none$/m);
     const volumes = [...signer.matchAll(/^Volume=(\S+)$/gm)].map(([, volume]) => volume);
     expect(volumes.sort()).toEqual([
