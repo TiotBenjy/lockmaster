@@ -12,7 +12,7 @@ import { REPO_ROOT, runScript } from '../helpers/run-script.js';
 let out: string;
 beforeAll(() => {
   out = mkdtempSync(join(tmpdir(), 'lockmaster-dist-'));
-  const result = runScript('scripts/build.mjs', [`--out=${out}`]);
+  const result = runScript('scripts/build.mjs', [`--out=${out}`, '--dev']);
   if (result.status !== 0) throw new Error(`build en échec : ${result.stderr}`);
 }, 120_000);
 afterAll(() => rmSync(out, { recursive: true, force: true }));
@@ -21,6 +21,17 @@ const run = (file: string, args: string[]) =>
   spawnSync(process.execPath, [join(out, file), ...args], { cwd: REPO_ROOT, encoding: 'utf8', shell: false });
 
 describe('scripts/build.mjs', () => {
+  it('exige le module natif compilé depuis les sources pour une livraison (--out sans --native)', () => {
+    const target = mkdtempSync(join(tmpdir(), 'lockmaster-dist-'));
+    try {
+      const result = runScript('scripts/build.mjs', [`--out=${target}`]);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toMatch(/--native/);
+    } finally {
+      rmSync(target, { recursive: true, force: true });
+    }
+  });
+
   it("produit le bundle de l'application, exécutable", () => {
     const result = run('lockmaster.mjs', ['--version']);
     expect(result.stdout.trim()).toBe(packageJson.version);

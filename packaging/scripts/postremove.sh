@@ -10,8 +10,9 @@ fi
 case "${1-}" in
   purge | 0)
     cat <<'MSG'
-lockmaster est supprimé. Données et clés conservées, à supprimer à la main si besoin :
-  /var/lib/lockmaster, /var/lib/lockmaster-signer, /etc/lockmaster, /etc/lockmaster-signer.
+lockmaster est supprimé (une purge retire aussi lockmaster.toml et signer.toml). Données et clés
+maîtresses conservées dans /var/lib/lockmaster, /var/lib/lockmaster-signer, /etc/lockmaster et
+/etc/lockmaster-signer : à supprimer à la main si besoin.
 Comptes lockmaster, lockmaster-signer et groupe lockmaster-sign conservés.
 MSG
     ;;

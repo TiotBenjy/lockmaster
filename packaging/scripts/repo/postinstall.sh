@@ -4,6 +4,45 @@
 # nginx, ne génère aucun secret.
 set -e
 
+root=/srv/lockmaster-repo
+home=/home/lockmaster-sync
+
+# >>> fonctions (testées par test/integration/repo-postinstall.test.ts)
+warn() {
+  echo "lockmaster-repo : AVERTISSEMENT : $*" >&2
+}
+
+# Racine du dépôt et ses deux dossiers, créés SEULEMENT si la racine n'existe pas : une racine
+# existante appartient au publieur (compte non privilégié), et root n'y touche à rien (un lien posé
+# par ce compte serait suivi). Racine créée en root 0700, enfants d'abord, propriétaire en dernier.
+# Répertoires 0750 setgid (fichiers publiés en 0640) : nginx lit par le groupe, n'écrit rien.
+create_repo_tree() { # $1 racine, $2 propriétaire, $3 groupe
+  mkdir -p "$(dirname "$1")"
+  if ! mkdir -m 0700 "$1" 2>/dev/null; then
+    for dir in "$1" "$1/public" "$1/private"; do
+      if [ -L "$dir" ] || [ ! -d "$dir" ]; then warn "$dir absent ou lien symbolique : arborescence à vérifier"; fi
+    done
+    return 0
+  fi
+  install -d -m 2750 -o "$2" -g "$3" "$1/public" "$1/private"
+  chown "$2:$3" "$1"
+  chmod 2750 "$1"
+}
+
+# Chemins qui ne doivent être modifiables que par root (sinon lockmaster-sync pourrait s'ajouter une
+# clé sans la restriction rrsync), par exemple un home préparé à la main avant le paquet.
+check_root_owned() {
+  for path in "$@"; do
+    [ -e "$path" ] || [ -L "$path" ] || continue
+    rights=$(stat -c '%A' "$path")
+    if [ -L "$path" ] || [ "$(stat -c '%u' "$path")" != 0 ] ||
+      [ "$(echo "$rights" | cut -c6)" = w ] || [ "$(echo "$rights" | cut -c9)" = w ]; then
+      warn "$path doit appartenir à root et n'être modifiable que par lui"
+    fi
+  done
+}
+# <<< fonctions
+
 case "${1-}" in
   configure) first=${2:-yes} ;;
   1) first=yes ;;
@@ -11,13 +50,6 @@ case "${1-}" in
   *) exit 0 ;;
 esac
 [ "$first" = yes ] || first=
-
-root=/srv/lockmaster-repo
-home=/home/lockmaster-sync
-
-warn() {
-  echo "lockmaster-repo : AVERTISSEMENT : $*" >&2
-}
 
 systemd-sysusers /usr/lib/sysusers.d/lockmaster-repo.conf
 
@@ -32,11 +64,7 @@ if id -u lockmaster >/dev/null 2>&1; then
   owner=lockmaster
   usermod -a -G lockmaster-repo lockmaster
 fi
-
-# Répertoires 0750 setgid (fichiers publiés en 0640) : nginx lit par le groupe, n'écrit rien.
-for dir in "$root" "$root/public" "$root/private"; do
-  [ -e "$dir" ] || install -d -m 2750 -o "$owner" -g lockmaster-repo "$dir"
-done
+create_repo_tree "$root" "$owner" lockmaster-repo
 
 # Compte rsync : home et authorized_keys à root (le compte ne peut pas ajouter de clé), lisibles
 # par son seul groupe. Chaque clé doit être restreinte par rrsync à la racine du dépôt.
@@ -49,7 +77,7 @@ for candidate in /usr/bin/rrsync /usr/share/rsync/scripts/rrsync /usr/libexec/rs
 done
 [ -e "$home" ] || install -d -m 0750 -o root -g lockmaster-sync "$home"
 [ -e "$home/.ssh" ] || install -d -m 0750 -o root -g lockmaster-sync "$home/.ssh"
-if [ ! -e "$home/.ssh/authorized_keys" ]; then
+if [ ! -e "$home/.ssh/authorized_keys" ] && [ ! -L "$home/.ssh/authorized_keys" ]; then
   {
     echo "# Clés de publication de lockmaster (cible rsync), une par ligne, toujours avec la restriction :"
     echo "# command=\"${rrsync:-rrsync} $root\",restrict ssh-ed25519 AAAA... lockmaster@hote-application"
@@ -57,11 +85,12 @@ if [ ! -e "$home/.ssh/authorized_keys" ]; then
   chown root:lockmaster-sync "$home/.ssh/authorized_keys"
   chmod 0640 "$home/.ssh/authorized_keys"
 fi
+check_root_owned "$home" "$home/.ssh" "$home/.ssh/authorized_keys"
 [ -n "$rrsync" ] || warn "rrsync introuvable : la cible rsync ne fonctionnera pas sans lui (voir docs/08 §2.2)"
 
 # Barrière contre les liens symboliques (docs/02) : rien de lockmaster ne doit être lisible par nginx.
 repo_gid=$(getent group lockmaster-repo | cut -d: -f3)
-for path in /var/lib/lockmaster /etc/lockmaster "$home"; do
+for path in /var/lib/lockmaster /etc/lockmaster /var/lib/lockmaster-signer /etc/lockmaster-signer "$home"; do
   [ -e "$path" ] || continue
   rights=$(stat -c '%A' "$path")
   if [ "$(echo "$rights" | cut -c8)" = r ] ||

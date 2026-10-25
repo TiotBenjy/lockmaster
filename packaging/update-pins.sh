@@ -3,8 +3,8 @@
 # SHA-256 tirés UNIQUEMENT de fichiers de sommes SIGNÉS et vérifiés (CLAUDE.md : jamais un hash
 # recopié d'une page web), et les digests des images de base.
 #   - Node.js : SHASUMS256.txt.asc vérifié par gpgv avec packaging/keys/nodejs-release-keys.kbx ;
-#   - Grype, nfpm : fichier de sommes signé sigstore, vérifié par cosign (identité du workflow de
-#     publication de LEUR dépôt) ; cosign tourne depuis son image épinglée par digest ;
+#   - Grype, nfpm : fichier de sommes signé sigstore, vérifié par cosign (identité exacte du workflow
+#     de publication de LEUR dépôt) ; cosign tourne depuis son image épinglée par digest ;
 #   - images : digest relevé au téléchargement (podman, sinon docker).
 # Outil de mainteneur (réseau requis) : le diff de versions.env est relu par un humain (CODEOWNERS).
 # Usage : sh packaging/update-pins.sh   (versions choisies ci-dessous)
@@ -53,14 +53,19 @@ gpgv --keyring "$here/keys/nodejs-release-keys.kbx" --output "$work/node.sums" "
 }
 node_sum() { awk -v f="node-v$NODE_VERSION-linux-$1.tar.xz" '$2 == f { print $1 }' "$work/node.sums"; }
 
-# cosign : épinglé par digest avant de servir à vérifier les autres.
-cosign_ref="${COSIGN_IMAGE%%:*}@$(digest_of "$COSIGN_IMAGE")"
-verify_sigstore() { # $1 fichier de sommes, $2 bundle, $3 dépôt GitHub propriétaire/nom
+# cosign : ancre de confiance des vérifications suivantes. Son digest est repris de versions.env
+# (déjà relu) ; en changer est une décision explicite : COSIGN_REPIN=1 relève le digest du tag.
+cosign_ref=$(sed -n 's/^COSIGN_IMAGE=//p' "$out" 2>/dev/null || true)
+if [ -z "$cosign_ref" ] || [ "${COSIGN_REPIN-}" = 1 ]; then
+  cosign_ref="${COSIGN_IMAGE%%:*}@$(digest_of "$COSIGN_IMAGE")"
+  echo "update-pins: image cosign épinglée à $cosign_ref (nouveau digest : à relire)" >&2
+fi
+verify_sigstore() { # $1 fichier de sommes, $2 bundle, $3 identité exacte du workflow de publication
   # Fichiers publics : lisibles par l'utilisateur non-root de l'image cosign.
   chmod a+rx "$work" && chmod a+r "$work/$1" "$work/$2"
   "$engine" run --rm --network host -v "$work:/w:ro,Z" "$cosign_ref" verify-blob \
     --bundle "/w/$2" \
-    --certificate-identity-regexp "^https://github\\.com/$3/\\.github/workflows/" \
+    --certificate-identity "$3" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
     "/w/$1" >/dev/null
 }
@@ -68,13 +73,16 @@ verify_sigstore() { # $1 fichier de sommes, $2 bundle, $3 dépôt GitHub propri�
 grype_base="https://github.com/anchore/grype/releases/download/v$GRYPE_VERSION"
 fetch "$grype_base/grype_${GRYPE_VERSION}_checksums.txt" "$work/grype.sums"
 fetch "$grype_base/grype_${GRYPE_VERSION}_checksums.txt.sigstore.json" "$work/grype.bundle"
-verify_sigstore grype.sums grype.bundle anchore/grype
+# Grype publie depuis main (déclenchement manuel du workflow), pas depuis le tag.
+verify_sigstore grype.sums grype.bundle \
+  "https://github.com/anchore/grype/.github/workflows/release.yaml@refs/heads/main"
 grype_sum() { awk -v f="grype_${GRYPE_VERSION}_linux_$1.tar.gz" '$2 == f { print $1 }' "$work/grype.sums"; }
 
 nfpm_base="https://github.com/goreleaser/nfpm/releases/download/v$NFPM_VERSION"
 fetch "$nfpm_base/checksums.txt" "$work/nfpm.sums"
 fetch "$nfpm_base/checksums.txt.sigstore.json" "$work/nfpm.bundle"
-verify_sigstore nfpm.sums nfpm.bundle goreleaser/nfpm
+verify_sigstore nfpm.sums nfpm.bundle \
+  "https://github.com/goreleaser/nfpm/.github/workflows/release.yml@refs/tags/v$NFPM_VERSION"
 nfpm_sum() { awk -v f="nfpm_${NFPM_VERSION}_Linux_$1.tar.gz" '$2 == f { print $1 }' "$work/nfpm.sums"; }
 
 require() { [ -n "$2" ] || { echo "update-pins: somme absente pour $1" >&2; exit 1; }; }
