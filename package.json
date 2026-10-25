@@ -1,0 +1,43 @@
+{
+  "name": "lockmaster",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Gestionnaire de dépôts APT/RPM/APK privés avec scan de sécurité",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@10.34.7+sha512.ba98abc585539933375b5971f4bc6d6c73a1b4b7edc4a879e7d102fe5423d1e02309d67c60a11f04955093a96e521ad9c3b138cdd654ca5be563f378b3ae48bd",
+  "scripts": {
+    "dev:init": "node scripts/dev-init.mjs",
+    "dev": "tsx watch src/main.ts serve --config lockmaster.dev.toml",
+    "check": "biome check . && tsc --noEmit && depcruise src test scripts --config .dependency-cruiser.cjs",
+    "test": "vitest run --project unit --project integration",
+    "test:fuzz": "FC_NUM_RUNS=100000 vitest run --project fuzz",
+    "test:e2e": "vitest run --project e2e",
+    "build": "node scripts/build.mjs",
+    "package": "sh packaging/package.sh",
+    "image": "sh packaging/image.sh"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "5.0.5",
+    "dependency-cruiser": "18.6.0",
+    "esbuild": "0.28.2",
+    "node-gyp": "13.1.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "@fastify/helmet": "13.2.0",
+    "better-sqlite3": "13.0.3",
+    "fastify": "5.12.7",
+    "pino": "10.4.0",
+    "smol-toml": "1.9.1",
+    "zod": "4.6.7"
+  }
+}

@@ -1,0 +1,9 @@
+# Réglages pnpm (pnpm 10 lit sa configuration ici).
+# Chaîne d'approvisionnement (docs/02 A13, SEC-24) :
+#  - seuls ces paquets peuvent exécuter un script d'installation ;
+#  - une version publiée depuis moins de 7 jours (10 080 minutes) n'est pas installée.
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
+
+minimumReleaseAge: 10080
