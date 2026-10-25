@@ -9,6 +9,8 @@ data_dir = "/var/lib/lockmaster-signer"      # signer.db : clés privées chiffr
 socket   = "/run/lockmaster-sign/sign.sock"
 # Groupe attendu sur le socket : le signataire vérifie après création (fstat) et refuse de démarrer
 # si le socket n'est pas exactement 0660 avec ce groupe (sauf activation par systemd, qui l'impose).
+# Nom (/etc/group) ou numéro (compose : "10100"). Vide (quadlets seulement) : groupe du dossier du
+# socket s'il est setgid, sinon groupe principal du signataire.
 socket_group = "lockmaster-sign"
 max_message_bytes = 16777216            # 16 MiB (en-têtes RPM et APKINDEX compris)
 request_timeout   = "30s"

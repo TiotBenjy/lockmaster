@@ -1,11 +1,11 @@
 import { readFileSync, statSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import type { z } from 'zod';
 import { LockmasterError } from '../domain/errors.js';
 import { applyEnvOverrides } from './env.js';
+import { isInsideReally, realpathLenient } from './real-path.js';
 import { type Config, configSchema } from './schema.js';
-import { isInside } from './secret-file.js';
 
 export const DEFAULT_CONFIG_PATH = '/etc/lockmaster/lockmaster.toml';
 const MAX_CONFIG_BYTES = 1024 * 1024;
@@ -39,7 +39,11 @@ export function readTomlFile(path: string): Record<string, unknown> {
   }
 }
 
-/** Rend absolus les chemins relatifs du document, par rapport à `baseDir`. */
+/**
+ * Rend absolus les chemins relatifs du document : simple concaténation au dossier RÉEL du fichier
+ * (`baseDir`), sans suivre les liens de la valeur (un lien final reste un lien, refusé ensuite par
+ * O_NOFOLLOW à la création). « .. » est refusé ici, et dans les chemins absolus par le schéma.
+ */
 export function resolveRelativePaths(value: unknown, baseDir: string, key = ''): unknown {
   if (Array.isArray(value)) return value.map((item) => resolveRelativePaths(item, baseDir));
   if (value !== null && typeof value === 'object') {
@@ -48,7 +52,10 @@ export function resolveRelativePaths(value: unknown, baseDir: string, key = ''):
     );
   }
   if (typeof value === 'string' && value !== '' && PATH_KEY.test(key) && !isAbsolute(value)) {
-    return resolve(baseDir, value);
+    if (value.split('/').includes('..')) {
+      throw new LockmasterError('CONFIG_INVALID', `${key} : segment « .. » interdit dans un chemin (« ${value} »)`);
+    }
+    return join(baseDir, value);
   }
   return value;
 }
@@ -65,11 +72,12 @@ export function loadConfig(options: { path: string; env: Env }): Config {
     prefix: 'LOCKMASTER__',
     schema: configSchema,
   });
-  const result = configSchema.safeParse(resolveRelativePaths(doc, dirname(resolve(options.path))));
+  const baseDir = realpathLenient(dirname(resolve(options.path)));
+  const result = configSchema.safeParse(resolveRelativePaths(doc, baseDir));
   if (!result.success) throw formatIssues(options.path, result.error);
   const config = result.data;
   // La clé maîtresse ne doit jamais être dans le dossier de données ni dans ses sauvegardes (docs/02 §3.3).
-  if (isInside(config.server.data_dir, config.security.master_key_file)) {
+  if (isInsideReally(config.server.data_dir, config.security.master_key_file)) {
     throw new LockmasterError(
       'CONFIG_INVALID',
       `${options.path} : security.master_key_file ne doit pas se trouver sous server.data_dir`,

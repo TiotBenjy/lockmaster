@@ -22,20 +22,20 @@ Exigences `docs/11` : SEC-14 (réseaux compose, clamd par socket), SEC-24 (bette
 But : un `lockmaster serve` qui répond, empaqueté dans les trois formats dès le premier jour, et le
 serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable à vide.
 
-- [ ] `package.json` (pnpm 10, `"type": "module"`, `engines.node: ">=24"`, `"license": "MIT"`), `pnpm-workspace.yaml`
+- [x] `package.json` (pnpm 10, `"type": "module"`, `engines.node: ">=24"`, `"license": "MIT"`), `pnpm-workspace.yaml`
       avec `onlyBuiltDependencies: [better-sqlite3, esbuild]` et `minimumReleaseAge`
-- [ ] `tsconfig.json` strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
+- [x] `tsconfig.json` strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
       `jsx: react-jsx`, `jsxImportSource: preact`), `biome.json`, `vitest.config.ts`
-- [ ] `src/config/` : `--config` > `LOCKMASTER_CONFIG` > `/etc/lockmaster/lockmaster.toml` ; smol-toml + schéma zod
+- [x] `src/config/` : `--config` > `LOCKMASTER_CONFIG` > `/etc/lockmaster/lockmaster.toml` ; smol-toml + schéma zod
       (= `deploy/lockmaster.example.toml`), surcharge `LOCKMASTER__SECTION__CLE`, durées/adresses, clés inconnues
       = erreur, lecture `*_file` avec refus si lisible par others ; `pnpm dev:init` ; tests
-- [ ] `src/main.ts`, `src/app.ts` (objet `Deps`), `src/http/server.ts` (Fastify, helmet + CSP +
+- [x] `src/main.ts`, `src/app.ts` (objet `Deps`), `src/http/server.ts` (Fastify, helmet + CSP +
       Permissions-Policy, request-id, erreurs sans fuite, `/healthz`, `/readyz`), CLI minimale
       (`serve`, `init` minimal : clé maîtresse + base vide, `config check`, `healthcheck`)
 - [ ] `scripts/check-licenses.mjs` en CI : licences de l'arbre de production conformes à CLAUDE.md
       §Licence ; licences tierces copiées dans les paquets (`/usr/share/doc/<paquet>/`) et l'image
-- [ ] Hook `onRoute` : toute route doit déclarer `perm` ou `public` ; test
-- [ ] Robustesse du processus (`docs/01` §4) : arrêt sur exception non gérée, arrêt propre sur
+- [x] Hook `onRoute` : toute route doit déclarer `perm` ou `public` ; test
+- [x] Robustesse du processus (`docs/01` §4) : arrêt sur exception non gérée, arrêt propre sur
       `SIGTERM`, surveillance de la boucle d'événements, limites HTTP ; tests
 - [ ] `.dependency-cruiser.cjs` (règles de couches de `docs/01` §6 : `domain`/`formats` sans
       infrastructure, `http`/`web` sans accès base, application sans `src/signer/`, `web/client` isolé)
@@ -47,17 +47,17 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
       `dangerouslySetInnerHTML`, `NODE_TLS_REJECT_UNAUTHORIZED` dans `src/`, `x-html`, `hx-on`,
       `style=` et `import 'alpinejs'` dans `src/web/`, ainsi que les caractères typographiques
       interdits par CLAUDE.md §Style d'écriture dans les fichiers du projet (mêmes règles que les hooks)
-- [ ] Tous les scripts pnpm de `CLAUDE.md` §Commandes existent (même vides pour `test:e2e`/`test:fuzz`)
-- [ ] `pnpm build` (esbuild -> `dist/lockmaster.mjs`, better-sqlite3 en external copié), `packaging/versions.env`, `packaging/nfpm.yaml` (.deb + .rpm, Node 24
+- [x] Tous les scripts pnpm de `CLAUDE.md` §Commandes existent (même vides pour `test:e2e`/`test:fuzz`)
+- [x] `pnpm build` (esbuild -> `dist/lockmaster.mjs`, better-sqlite3 en external copié), `packaging/versions.env`, `packaging/nfpm.yaml` (.deb + .rpm, Node 24
       embarqué et vérifié par SHA-256, unité systemd durcie, utilisateur `lockmaster`, conffile)
-- [ ] `packaging/Containerfile` multi-étapes, non-root, compatible `docker build` et `podman build` ;
+- [x] `packaging/Containerfile` multi-étapes, non-root, compatible `docker build` et `podman build` ;
       dossiers `/run/lockmaster-sign`, `/var/lib/lockmaster-signer`, `/var/lib/lockmaster` avec les propriétaires d'ADR-0007
 - [ ] Unités `packaging/systemd/` (`lockmaster.service`, `lockmaster-signer.socket`, `lockmaster-signer.service`),
       `packaging/sysusers/lockmaster.conf`, `packaging/tmpfiles/lockmaster.conf` installées par les paquets ;
       `systemd-analyze verify` et `systemd-analyze security` (signataire <= 1,0, application <= 2,0) en CI
 - [ ] Quadlets `deploy/quadlet/` (deux comptes) validés par `quadlet -dryrun` en CI ; `deploy/compose.yaml`
       validé par `compose config`
-- [ ] `packaging/nfpm-repo.yaml` : paquet `lockmaster-repo` (config nginx de référence, `/srv/lockmaster-repo`,
+- [x] `packaging/nfpm-repo.yaml` : paquet `lockmaster-repo` (config nginx de référence, `/srv/lockmaster-repo`,
       groupe `lockmaster-repo`, utilisateur `lockmaster-sync` + rrsync, SELinux) ; test `nginx -t` après installation
 - [ ] `deploy/nginx/lockmaster-repo.container.conf` régénéré par `packaging/gen-nginx-container-conf.sh`
       (la CI échoue si le fichier commité diffère) ; `deploy/gen-test-cert.sh` (certificat auto-signé
@@ -69,6 +69,18 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
       `CODEOWNERS` (propriétaire : TiotBenjy) ; image publiée sur `ghcr.io/tiotbenjy/lockmaster`
 - [ ] `deploy/compose.yaml` (signer + lockmaster + clamav + repo), `deploy/quadlet/` ; CI GitHub Actions : check, test, build, package,
       image, test d'installation du .deb (Debian 12 et 13) et du .rpm (Rocky 9 et 10) qui vérifie `/healthz`
+
+État au 2026-10-25 : les cases restées vides exigent un passage de la CI, ou un réglage du dépôt GitHub
+(`docs/guide/securite-github.md`), qui n'a pas encore eu lieu : rien n'a été poussé. Ce qu'elles
+décrivent est en place et vérifié en local par les scripts que lance la CI : gardes, contrats,
+licences et `pnpm audit` ; `test/deliverables/packages.sh` et `repo-package.sh` sur Debian 12,
+Debian 13, Rocky 9 et Rocky 10 (dont `systemd-analyze verify` et `security` : 0,3 pour le
+signataire, 1,4 pour l'application) ; `test/deliverables/image.sh` avec Podman rootless et Docker ;
+`quadlet -dryrun`, `compose config`, régénération de la configuration nginx. Le critère de sortie
+ci-dessous passe de même en local. Limites connues : le contexte SELinux est enregistré
+(`semanage`) mais son application aux fichiers ne se vérifie pas dans un conteneur ; les quadlets ne
+sont validés que par `quadlet -dryrun` ; l'image n'est publiée sur ghcr.io qu'au premier tag de
+version (`release.yml`). À cocher après le premier passage vert de la CI.
 
 Critère de sortie, en CI, pour chacun des trois livrables :
 - `.deb` (Debian 12 et 13) et `.rpm` (Rocky 9 et 10) dans un conteneur avec systemd : installation, puis
@@ -103,6 +115,10 @@ Exigences `docs/11` : SEC-22 (mémoire des décompresseurs : fenêtre zstd, limi
 ## M2 : Base, blobs, audit, crypto
 
 Exigences `docs/11` : SEC-21 (points de contrôle d'audit périodiques, clé d'audit dédiée, réglages réservés), SEC-06 (certificat de révocation généré avec chaque clé), SEC-05 (une clé par dépôt).
+
+Reporté de M0 (SEC-29) : la clé maîtresse de l'application est en `root:root` 0400 et transmise par
+`LoadCredential=` ; faire de même pour celle du signataire (`lockmaster-signer.service`) quand
+`lockmaster init` initialisera le signataire.
 
 - [ ] `db/` : connexion (pragmas), migrations embarquées, `0001_init.sql` (= `docs/05`), helper `tx`
       synchrone, repositories Kysely typés
@@ -149,6 +165,11 @@ Exigences `docs/11` : SEC-05 (`Origin`/`Label` uniques, `Valid-Until` 7 j), SEC-
 
 Exigences `docs/11` : **SEC-01** (ClamAV sur chaque flux interne décompressé ; test : paquet piégé par format et par compression détecté), **SEC-02** (règles d'intégrité de la flotte intégrées et non désactivables), SEC-14 (canari ClamAV périodique), SEC-15 (isolation de Grype), SEC-22 (quotas, files équitables), SEC-25.
 
+Reporté de M0 (revue de l'image) : service `clamav` de compose et des quadlets épinglé mais pas
+encore durci (`cap_drop`, `read_only`, `tmpfs`) ; à faire avec le client clamd, en vérifiant le chemin
+et les droits du socket. Quadlet `repo` : nginx tourne sous l'UID hôte du compte `lockmaster`
+(`keep-id:uid=101`) ; étudier un `UIDMap`/`GIDMap` qui ne projette que le groupe.
+
 - [ ] Machine à états + table de vérité testée ; jobs persistants (`jobs/`) avec reprise
 - [ ] Pool de `worker_threads` pour l'analyse des paquets (`resourceLimits`, échéance, recréation) ;
       test : bombe de décompression et paquet qui boucle -> worker terminé, paquet en `error`,
@@ -174,6 +195,12 @@ Exigences `docs/11` : SEC-03 (clés hors bande, `gpgkey=file://`, empreinte affi
 ## M6 : Authentification, autorisation, UI
 
 Exigences `docs/11` : SEC-08 (jetons), SEC-09 (OIDC `(iss, sub)`), SEC-10 (MFA), SEC-11 (résolveurs de ressource, listes filtrées), SEC-12 (config htmx, `no-store`), SEC-18 (4 yeux sur les réglages de sécurité).
+
+Reporté de la revue de sécurité de M0 : le hook `onRequest` de `src/http/authorize.ts` refuse
+aujourd'hui toute route non publique ; il doit déléguer au contrôle d'accès. `http.request_timeout`
+(15 min) s'applique à toutes les routes : avant la première route POST publique (connexion), un
+délai court pour les requêtes ordinaires, un délai propre aux uploads dans leur flux, et une limite
+de connexions par IP (sinon un client lent occupe les 1024 connexions).
 
 - [ ] Sessions cookie `__Host-`, CSRF, connexion locale, verrouillage, limite par IP, MFA TOTP + codes
       de récupération, réinitialisation de mot de passe (SMTP)

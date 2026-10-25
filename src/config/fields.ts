@@ -43,7 +43,9 @@ export const path = (fallback = '') =>
     .string()
     .default(fallback)
     .refine((value) => !value.includes('\0'), 'chemin avec octet nul')
-    .refine((value) => value === '' || isAbsolute(value), 'chemin absolu attendu');
+    .refine((value) => value === '' || isAbsolute(value), 'chemin absolu attendu')
+    // « .. » serait simplifié lexicalement ici mais suivi après les liens par le noyau.
+    .refine((value) => !value.split('/').includes('..'), 'segment « .. » interdit dans un chemin');
 
 /** URL http(s) sans identifiants ni fragment. */
 export const httpUrl = (options: { httpsOnly: boolean }) =>

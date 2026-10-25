@@ -18,6 +18,7 @@ secrets/
 *.key
 *.pem
 deploy/lockmaster.toml
+deploy/tls/
 
 # Préférences Claude Code personnelles
 CLAUDE.local.md

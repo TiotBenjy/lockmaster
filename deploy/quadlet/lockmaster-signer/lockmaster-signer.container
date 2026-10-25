@@ -6,18 +6,24 @@ Description=lockmaster - service de signature
 ContainerName=lockmaster-signer
 Image=ghcr.io/tiotbenjy/lockmaster:1
 Exec=signer serve --socket /run/lockmaster-sign/sign.sock
-# Le processus a l'UID hôte de lockmaster-signer : le socket lui appartient, groupe hérité du dossier.
-UserNS=keep-id
+# Compte hôte lockmaster-signer projeté sur l'UID 10002:10100 de l'image : propriétaire du volume de
+# clés (/var/lib/lockmaster-signer 10002 0700) et du socket, dont le groupe est hérité du dossier hôte.
+UserNS=keep-id:uid=10002,gid=10100
 # Aucun réseau : il ne parle qu'au socket Unix.
 Network=none
 Volume=/run/lockmaster-sign:/run/lockmaster-sign
 Volume=lockmaster-signer-keys.volume:/var/lib/lockmaster-signer
-Secret=lockmaster-signer-master-key,type=mount,target=/run/secrets/master_key
+# Lisible par le seul UID du signataire (lockmaster refuse un secret plus ouvert).
+Secret=lockmaster-signer-master-key,type=mount,target=/run/secrets/master_key,uid=10002,gid=10100,mode=0400
 Environment=LOCKMASTER_SIGNER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key
+# Groupe du socket vide : celui du dossier setgid de l'hôte (keep-id ne transmet pas les noms de groupe).
+Environment=LOCKMASTER_SIGNER__SERVER__SOCKET_GROUP=
 ReadOnly=true
 Tmpfs=/tmp
 DropCapability=ALL
 NoNewPrivileges=true
+# La sonde de l'image interroge l'application, absente de ce conteneur.
+HealthCmd=none
 # Même niveau SELinux que le conteneur de l'application, sinon la connexion au socket est refusée
 # (catégories MCS aléatoires par défaut en rootless). À valider en M0 sur RHEL/Fedora.
 SecurityLabelLevel=s0:c100,c200

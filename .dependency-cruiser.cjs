@@ -38,8 +38,9 @@ module.exports = {
     {
       name: 'only-signer-imports-signer',
       severity: 'error',
-      comment: "ADR-0009 : l'application passe par src/signer-client/, jamais par src/signer/.",
-      from: { path: '^src/', pathNot: '^src/(signer/|main\\.ts$|cli/signer)' },
+      comment:
+        "ADR-0009 : l'application passe par src/signer-client/, jamais par src/signer/ (point d'entrée et bundle distincts).",
+      from: { path: '^src/', pathNot: '^src/signer/' },
       to: { path: '^src/signer/' },
     },
     {
@@ -48,6 +49,16 @@ module.exports = {
       comment: "ADR-0009 : le signataire n'a ni réseau, ni HTTP, ni accès à la base de l'application.",
       from: { path: '^src/signer/' },
       to: { path: '^src/(net|http|db|web|publish|pipeline|auth|jobs|upstream|scan|storage|signer-client)/' },
+    },
+    {
+      name: 'signer-isolated-transitive',
+      severity: 'error',
+      comment: 'ADR-0009 : même règle à travers les modules partagés (config, log...) que le signataire importe.',
+      from: { path: '^src/signer/' },
+      to: {
+        path: '^src/(net|http|db|web|publish|pipeline|auth|jobs|upstream|scan|storage|signer-client)/',
+        reachable: true,
+      },
     },
     {
       name: 'signer-no-network-api',

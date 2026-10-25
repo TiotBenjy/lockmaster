@@ -6,28 +6,38 @@
 # Voir ADR-0008 (serveur de dépôt), ADR-0009 (signataire), docs/08 §3.
 #
 # Avant le premier démarrage : docs/08 §3 (secrets, `signer init`, `init`).
+#
+# Fichiers de l'hôte (configuration, clés, certificats) : montés en lecture seule, chacun dans le seul
+# service qui en a besoin, protégés par leurs droits (0400, UID du service). « z » : label SELinux
+# partagé, nécessaire sur RHEL/Fedora ; un label privé (« Z ») serait repris par chaque `compose run`
+# et retiré au conteneur déjà en marche.
 name: lockmaster
 
 services:
   signer:                                   # seul détenteur des clés de signature
-    image: ghcr.io/tiotbenjy/lockmaster:1            # épingler par digest en production
+    image: ${LOCKMASTER_IMAGE:-ghcr.io/tiotbenjy/lockmaster:1}   # épingler par digest en production
     command: ["signer", "serve", "--socket", "/run/lockmaster-sign/sign.sock"]
     user: "10002:10100"                     # groupe 10100 = « lockmaster-sign » partagé avec l'application
     network_mode: none                      # aucun réseau
     volumes:
       - signer-keys:/var/lib/lockmaster-signer   # monté UNIQUEMENT ici
       - sign-sock:/run/lockmaster-sign
-    secrets: [signer_master_key]
+      # Clé maîtresse du signataire (distincte) : montée UNIQUEMENT ici.
+      - ./secrets/signer-master.key:/run/secrets/signer_master_key:ro,z
     environment:
       LOCKMASTER_SIGNER__SECURITY__MASTER_KEY_FILE: /run/secrets/signer_master_key
+      # Groupe du socket par son numéro : l'image ne connaît pas le nom « lockmaster-sign ».
+      LOCKMASTER_SIGNER__SERVER__SOCKET_GROUP: "10100"
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+    # Pas de sonde : le HEALTHCHECK de l'image interroge l'application, absente de ce conteneur.
+    healthcheck: { disable: true }
     restart: unless-stopped
 
   lockmaster:                                    # application, aucun accès aux clés de signature
-    image: ghcr.io/tiotbenjy/lockmaster:1
+    image: ${LOCKMASTER_IMAGE:-ghcr.io/tiotbenjy/lockmaster:1}
     command: ["serve"]
     user: "10001:10101"                     # groupe principal 10101 = partagé avec nginx (repo-public)
     group_add: ["10100"]                    # groupe du socket de signature
@@ -38,8 +48,8 @@ services:
       - repo-public:/srv/lockmaster-repo         # cible de publication « local »
       - clamav-sock:/run/clamav
       - sign-sock:/run/lockmaster-sign
-      - ./lockmaster.toml:/etc/lockmaster/lockmaster.toml:ro
-    secrets: [master_key, admin_password]
+      - ./lockmaster.toml:/etc/lockmaster/lockmaster.toml:ro,z
+      - ./secrets/master.key:/run/secrets/master_key:ro,z          # clé maîtresse de l'application
     environment:
       LOCKMASTER__SECURITY__MASTER_KEY_FILE: /run/secrets/master_key
       LOCKMASTER__SIGNER__SOCKET: /run/lockmaster-sign/sign.sock
@@ -52,7 +62,7 @@ services:
     restart: unless-stopped
 
   clamav:                                   # joignable uniquement par l'application
-    image: docker.io/clamav/clamav:1.4      # épingler par digest en production
+    image: docker.io/clamav/clamav@sha256:3bba6dd5ac6663d55b80f86a3126e146612d93b593cc2617188d13f637d91260   # clamav/clamav:1.4 (versions.env) ; amd64 seulement
     networks: [scan]
     volumes:
       - clamav-db:/var/lib/clamav
@@ -61,15 +71,16 @@ services:
     restart: unless-stopped
 
   repo:                                     # serveur de dépôt : seul service exposé à la flotte
-    image: docker.io/nginxinc/nginx-unprivileged:stable-alpine   # épingler par digest
+    image: docker.io/nginxinc/nginx-unprivileged@sha256:7377697a821c131a924a7105fafbe7414db4e9fcc77a6f08f776f33f141ec3f8   # nginx-unprivileged:1.28-alpine (versions.env)
     user: "101:101"
     group_add: ["10101"]
-    ports: ["443:8443", "80:8080"]
+    # Podman rootless : ports < 1024 interdits, d'où REPO_HTTPS_PORT / REPO_HTTP_PORT (ex. 8443, 8080).
+    ports: ["${REPO_HTTPS_PORT:-443}:8443", "${REPO_HTTP_PORT:-80}:8080"]
     networks: [repo]
     volumes:
       - repo-public:/srv/lockmaster-repo:ro
-      - ./nginx/lockmaster-repo.container.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./tls:/etc/nginx/tls:ro
+      - ./nginx/lockmaster-repo.container.conf:/etc/nginx/conf.d/default.conf:ro,z
+      - ./tls:/etc/nginx/tls:ro,z
     read_only: true
     tmpfs: [/tmp, /var/cache/nginx]
     cap_drop: [ALL]
@@ -88,8 +99,3 @@ volumes:
   repo-public: {}
   clamav-db: {}
   clamav-sock: {}
-
-secrets:
-  master_key:        { file: ./secrets/master.key }          # clé maîtresse de l'application
-  signer_master_key: { file: ./secrets/signer-master.key }   # clé maîtresse du signataire (distincte)
-  admin_password:    { file: ./secrets/admin_password }      # utilisé une fois par `init`

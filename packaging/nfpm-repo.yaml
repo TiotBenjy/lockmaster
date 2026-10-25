@@ -1,0 +1,37 @@
+# Paquet lockmaster-repo (.deb et .rpm, sans code) : serveur de dépôt nginx (ADR-0008, docs/08 §2.1).
+# Aucun code lockmaster, aucune clé, aucune base : la configuration nginx de référence, les comptes et
+# les répertoires. Produit par packaging/package.sh (LOCKMASTER_VERSION).
+name: lockmaster-repo
+arch: all
+platform: linux
+version: ${LOCKMASTER_VERSION}
+release: 1
+section: web
+priority: optional
+maintainer: TiotBenjy (https://github.com/TiotBenjy/lockmaster)
+vendor: lockmaster
+homepage: https://github.com/TiotBenjy/lockmaster
+license: MIT
+description: |-
+  Serveur de dépôt de lockmaster : configuration nginx de référence, arborescence
+  /srv/lockmaster-repo et compte de publication rsync restreint par rrsync.
+
+depends: [nginx, rsync, systemd]
+overrides:
+  rpm:
+    # semanage et restorecon : contexte SELinux httpd_sys_content_t de /srv/lockmaster-repo.
+    depends: [nginx, rsync, systemd, policycoreutils, policycoreutils-python-utils]
+
+contents:
+  - src: ./deploy/nginx/lockmaster-repo.conf
+    dst: /etc/nginx/conf.d/lockmaster-repo.conf
+    type: config|noreplace
+    file_info: { mode: 0644 }
+  - src: ./packaging/sysusers/lockmaster-repo.conf
+    dst: /usr/lib/sysusers.d/lockmaster-repo.conf
+  - src: ./LICENSE
+    dst: /usr/share/doc/lockmaster-repo/LICENSE
+
+scripts:
+  postinstall: ./packaging/scripts/repo/postinstall.sh
+  postremove: ./packaging/scripts/repo/postremove.sh

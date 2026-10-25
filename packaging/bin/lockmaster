@@ -1,0 +1,20 @@
+#!/bin/sh
+# Lanceur de lockmaster : exécute le Node.js embarqué sur l'un des deux bundles (ADR-0007, ADR-0009).
+#   paquets : /usr/bin/lockmaster -> /usr/lib/lockmaster/bin/lockmaster
+#   image   : /app/bin/lockmaster
+# `lockmaster signer ...` lance le service de signature (bundle distinct), tout le reste l'application.
+# Le tas V8 est borné (docs/01 §4) : une saturation mémoire arrête le processus, qui est relancé.
+set -eu
+
+self=$(readlink -f "$0")
+root=$(dirname "$(dirname "$self")")
+
+entry=lockmaster.mjs
+heap_mb=1536
+if [ "${1-}" = signer ]; then
+  shift
+  entry=lockmaster-signer.mjs
+  heap_mb=256
+fi
+
+exec "$root/node/bin/node" --max-old-space-size="$heap_mb" "$root/$entry" "$@"

@@ -12,6 +12,11 @@ Group=lockmaster
 # Seul moyen de joindre le signataire ; ne donne aucun accès à ses fichiers (ADR-0009).
 SupplementaryGroups=lockmaster-sign
 ExecStart=/usr/bin/lockmaster serve --config /etc/lockmaster/lockmaster.toml
+# Clé maîtresse (root:root 0400, illisible pour le compte lockmaster hors de cette unité) transmise par
+# systemd dans le dossier des credentials (SEC-29). Pour la chiffrer avec systemd-creds :
+# /usr/share/doc/lockmaster/examples/master-key-credential.conf (LoadCredentialEncrypted=).
+LoadCredential=master.key:/etc/lockmaster/master.key
+Environment=LOCKMASTER__SECURITY__MASTER_KEY_FILE=%d/master.key
 Restart=on-failure
 RestartSec=5s
 RestartPreventExitStatus=78

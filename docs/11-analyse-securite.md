@@ -364,6 +364,9 @@ Gravité : **C** critique, **H** élevée, **M** moyenne. Statut : **intégrée*
   explicites `ProtectKernelTunables`, `ProtectKernelModules`, `ProtectKernelLogs`, `ProtectControlGroups`,
   `RestrictNamespaces`, `LockPersonality`, `SystemCallArchitectures=native`, `ProtectProc=invisible` ;
   `redact` pino pour `authorization`, `cookie`, `set-cookie`, `x-csrf-token`.
+- **Application** (ADR-0012, proposé) : paquets : clé `root:root` 0400 transmise par `LoadCredential=` ;
+  `LoadCredentialEncrypted=` par un drop-in d'exemple que l'opérateur active (`lockmaster init` ne peut
+  pas lancer `systemd-creds`, invariant 3).
 
 ### SEC-30 (M) : Snapshots
 - **Exigence** (M8) : `Release` d'un snapshot re-signé avec un `Valid-Until` frais à chaque

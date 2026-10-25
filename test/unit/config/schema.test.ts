@@ -81,6 +81,8 @@ describe('validation', () => {
     ['noms de cibles en double', { publish: { targets: [MINIMAL.publish.targets[0], MINIMAL.publish.targets[0]] } }],
     ['URL de flux en http', { feeds: { kev_url: 'http://example.com/kev.json' } }],
     ['rôle MFA inconnu', { security: { mfa_required_roles: ['root'] } }],
+    ['segment .. dans data_dir', { server: { ...MINIMAL.server, data_dir: '/var/lib/x/../lockmaster' } }],
+    ['segment .. dans un chemin de fichier', { security: { master_key_file: '/etc/lockmaster/../master.key' } }],
   ])('refuse : %s', (_label, patch) => {
     expect(withPatch(patch).success).toBe(false);
   });

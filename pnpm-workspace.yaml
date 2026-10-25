@@ -7,3 +7,16 @@ onlyBuiltDependencies:
   - esbuild
 
 minimumReleaseAge: 10080
+
+# Exception au délai de 7 jours, réservée aux correctifs de sécurité : versions EXACTES, avec la
+# référence de l'avis et la date à laquelle l'exception devient inutile (à retirer ensuite).
+#  - fast-uri 3.1.9 et 4.2.3 (publiées le 2026-10-19) : GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp
+#    et avis associés (alertes Dependabot 1 à 8) ; inutile à partir du 2026-10-26.
+minimumReleaseAgeExclude:
+  - fast-uri@3.1.9 || 4.2.3
+
+# Versions corrigées imposées aux dépendances transitives (fastify -> ajv, @fastify/ajv-compiler,
+# fast-json-stringify) tant que leurs versions ne les exigent pas d'elles-mêmes.
+overrides:
+  fast-uri@^3: ^3.1.9
+  fast-uri@^4: ^4.2.3

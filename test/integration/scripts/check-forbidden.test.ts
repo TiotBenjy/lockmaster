@@ -40,6 +40,7 @@ describe('scripts/check-forbidden.mjs', () => {
     ['src/web/p.tsx', 'const a = <div hx-on:click="v" />;\n', 'hx-on'],
     ['src/web/p.tsx', 'const a = <div style="color: red" />;\n', 'style'],
     ['src/web/client/a.ts', "import Alpine from 'alpinejs';\n", 'alpinejs'],
+    ['src/http/routes/x.ts', 'app.setNotFoundHandler(() => {});\n', 'setNotFoundHandler'],
   ])('refuse %s contenant un motif interdit (%#)', (path, content, label) => {
     const root = tree({ [path]: content });
     const result = runScript(SCRIPT, [root]);
@@ -55,6 +56,11 @@ describe('scripts/check-forbidden.mjs', () => {
     expect(result.stderr).toContain('docs/x.md');
     expect(result.stderr).toContain('U+2014');
     expect(result.stderr).toContain('deploy/a.conf');
+  });
+
+  it('accepte setNotFoundHandler dans src/http/errors.ts seulement', () => {
+    const root = tree({ 'src/http/errors.ts': 'app.setNotFoundHandler(() => {});\n' });
+    expect(runScript(SCRIPT, [root]).status).toBe(0);
   });
 
   it('ignore les fichiers tiers vendorisés, les licences et node_modules', () => {

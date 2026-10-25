@@ -1,0 +1,51 @@
+# Image OCI de lockmaster (ADR-0007, ADR-0013) : l'application ET le service de signature (même
+# image : `serve`, `signer serve`), pour `docker build` comme pour `podman build`. Construite par
+# packaging/image.sh, dont le contexte est out/stage (packaging/stage.sh) : Node.js et Grype vérifiés
+# par SHA-256, better-sqlite3 compilé depuis ses sources. Rien n'est téléchargé ici, hors paquets
+# Debian signés de l'image de base, elle-même épinglée par digest (BASE_IMAGE, versions.env).
+ARG BASE_IMAGE
+
+# Contrôle : l'arborescence fonctionne sur la base finale (glibc, module natif) avant d'y être copiée.
+FROM ${BASE_IMAGE} AS check
+COPY root/ /app/
+RUN ["/app/node/bin/node", "/app/lockmaster.mjs", "--version"]
+RUN ["/app/node/bin/node", "/app/lockmaster-signer.mjs", "--help"]
+RUN ["/app/node/bin/node", "-e", "new (require('/app/node_modules/better-sqlite3'))(':memory:').prepare('select 1').get()"]
+RUN ["/app/bin/grype", "version"]
+
+FROM ${BASE_IMAGE}
+ARG VERSION=0.0.0
+LABEL org.opencontainers.image.title="lockmaster" \
+      org.opencontainers.image.description="Gestionnaire de dépôts APT, RPM et APK privés avec analyse de sécurité" \
+      org.opencontainers.image.source="https://github.com/TiotBenjy/lockmaster" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${VERSION}"
+
+# rsync et ssh : cibles de publication distantes (ADR-0007).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates openssh-client rsync \
+ && rm -rf /var/lib/apt/lists/*
+
+# Comptes (ADR-0007, ADR-0009) : application 10001 (groupe 10101, partagé avec nginx pour la cible
+# « local »), signataire 10002 (groupe 10100 = lockmaster-sign, celui du socket). Les volumes nommés
+# héritent des propriétaires de ces dossiers à leur création.
+RUN groupadd --gid 10100 lockmaster-sign \
+ && groupadd --gid 10101 lockmaster \
+ && useradd --uid 10001 --gid 10101 --groups 10100 --no-create-home --home-dir /var/lib/lockmaster \
+      --shell /usr/sbin/nologin lockmaster \
+ && useradd --uid 10002 --gid 10100 --no-create-home --home-dir /var/lib/lockmaster-signer \
+      --shell /usr/sbin/nologin lockmaster-signer \
+ && install -d -m 2750 -o 10002 -g 10100 /run/lockmaster-sign \
+ && install -d -m 0700 -o 10002 -g 10100 /var/lib/lockmaster-signer \
+ && install -d -m 0750 -o 10001 -g 10101 /var/lib/lockmaster \
+ && install -d -m 2750 -o 10001 -g 10101 /srv/lockmaster-repo
+
+COPY --from=check /app /app
+COPY doc/ /usr/share/doc/lockmaster/
+ENV LOCKMASTER__SCANNERS__GRYPE__BINARY=/app/bin/grype
+
+USER 10001:10101
+EXPOSE 8080
+ENTRYPOINT ["/app/bin/lockmaster"]
+CMD ["serve"]
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/app/node/bin/node", "/app/lockmaster.mjs", "healthcheck"]
