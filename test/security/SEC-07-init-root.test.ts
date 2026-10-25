@@ -1,14 +1,17 @@
 import { chmodSync, existsSync, mkdirSync, statSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { SystemAccounts } from '../../../src/cli/accounts.js';
-import { initCommand } from '../../../src/cli/commands/init.js';
-import type { CommandContext } from '../../../src/cli/context.js';
-import type { Identity, Privileges } from '../../../src/cli/privileges.js';
-import { freePort, installation } from '../../helpers/cli.js';
+import type { SystemAccounts } from '../../src/cli/accounts.js';
+import { initCommand } from '../../src/cli/commands/init.js';
+import type { CommandContext } from '../../src/cli/context.js';
+import type { Identity, Privileges } from '../../src/cli/privileges.js';
+import { freePort, installation } from '../helpers/cli.js';
 
-// `lockmaster init` lancé en root (paquets). Les tests ne tournent pas en root : le « superutilisateur »
-// et le compte de service sont simulés par le compte courant, et le changement d'identité est observé.
+// SEC-07 / ADR-0009 : une compromission du compte de l'application (lockmaster) ne doit pas mener à
+// root, sinon la séparation du signataire tombe. Scénario : l'attaquant pose des liens dans data_dir,
+// qu'il contrôle, puis l'administrateur relance `lockmaster init` en root (paquets).
+// Les tests ne tournent pas en root : le « superutilisateur » et le compte de service sont simulés par
+// le compte courant, et le changement d'identité est observé.
 
 const me: Identity = { uid: process.getuid?.() ?? 1000, gid: process.getgid?.() ?? 1000 };
 
@@ -69,7 +72,7 @@ async function codeOf(promise: Promise<number>): Promise<string> {
   }
 }
 
-describe('lockmaster init en root', () => {
+describe('SEC-07 : lockmaster init en root ne suit aucun lien de data_dir', () => {
   it("crée la base sous l'identité du service, jamais en root ; la clé en 0440 avec le groupe du service", async () => {
     const { ctx, dataDir, keyFile } = await setup();
     const dbPath = join(dataDir, 'lockmaster.db');
