@@ -88,6 +88,13 @@ Reste ouvert avant de clore M0 :
 - Les quadlets ne sont validés que par `quadlet -dryrun` (ce que demande le critère) ; leur démarrage
   réel sous deux comptes n'a pas été essayé.
 
+**Dérogation (décision du porteur, 2026-10-26)** : M1 commence avant la clôture de M0, par exception
+à la règle « ne pas commencer M(n+1) avant que tous les critères de M(n) soient cochés ». Motif : les
+deux points ouverts (réglages du dépôt GitHub et première image sur ghcr.io ; contexte SELinux
+constaté sur un hôte Rocky réel) relèvent de l'exploitation et ne touchent pas le code des parseurs
+de M1. Ils restent à fermer avant de commencer M2 ; la case et le critère de sortie restent décochés
+d'ici là.
+
 Critère de sortie, en CI, pour chacun des trois livrables :
 - `.deb` (Debian 12 et 13) et `.rpm` (Rocky 9 et 10) dans un conteneur avec systemd : installation, puis
   `lockmaster init --non-interactive --admin-password-file <f>`, `systemctl start lockmaster`,
