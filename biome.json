@@ -49,6 +49,9 @@
       "security": {
         "noDangerouslySetInnerHtml": "error",
         "noGlobalEval": "error"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
       }
     }
   },

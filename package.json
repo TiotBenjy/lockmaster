@@ -27,6 +27,7 @@
     "@vitest/coverage-v8": "5.0.5",
     "dependency-cruiser": "18.6.0",
     "esbuild": "0.28.2",
+    "fast-check": "4.10.2",
     "node-gyp": "13.1.0",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
