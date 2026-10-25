@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isInside, readSecretFile } from '../../../src/config/secret-file.js';
+import { defaultAllowedGids, isInside, readSecretFile } from '../../../src/config/secret-file.js';
 import { LockmasterError } from '../../../src/domain/errors.js';
 
 let dir: string;
@@ -46,6 +46,12 @@ describe('readSecretFile', () => {
       'SECRET_FILE_GROUP',
     );
     expect(readSecretFile(secret('h', 'abc', 0o400), { allowedGids: [otherGid] }).toString()).toBe('abc');
+  });
+
+  it('par défaut, seuls root et le groupe PRINCIPAL du service sont admis (pas ses groupes supplémentaires)', () => {
+    // lockmaster et lockmaster-signer partagent le groupe supplémentaire lockmaster-sign (sysusers) :
+    // une clé lisible par ce groupe serait lisible par les deux comptes.
+    expect(defaultAllowedGids()).toEqual([0, process.getgid?.() ?? 0]);
   });
 
   it("refuse un fichier dont le propriétaire n'est ni root ni le compte courant", () => {
