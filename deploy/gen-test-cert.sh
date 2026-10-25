@@ -4,7 +4,7 @@
 # Écrit <dossier>/repo.crt et <dossier>/repo.key (par défaut deploy/tls, monté par compose.yaml) ; ne
 # remplace jamais un certificat existant. La clé est lisible par tous (0644) pour que nginx (UID 101)
 # la lise à travers le montage, quel que soit le mapping d'UID du moteur : acceptable pour un
-# certificat de test, jamais pour un vrai.
+# certificat de test, jamais pour un vrai (vraie clé : 0400, UID 101 ; docs/08 §3.2).
 # Usage : sh deploy/gen-test-cert.sh [dossier] [nom d'hôte]
 set -eu
 

@@ -50,7 +50,6 @@ services:
       - sign-sock:/run/lockmaster-sign
       - ./lockmaster.toml:/etc/lockmaster/lockmaster.toml:ro,z
       - ./secrets/master.key:/run/secrets/master_key:ro,z          # clé maîtresse de l'application
-      - ./secrets/admin_password:/run/secrets/admin_password:ro,z  # utilisé une fois par `init`
     environment:
       LOCKMASTER__SECURITY__MASTER_KEY_FILE: /run/secrets/master_key
       LOCKMASTER__SIGNER__SOCKET: /run/lockmaster-sign/sign.sock
