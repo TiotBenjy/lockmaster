@@ -1,6 +1,8 @@
-# Publication de l'image sur ghcr.io/tiotbenjy/lockmaster, à chaque tag de version (vX.Y.Z).
-# Environnement « release » protégé, avec relecteurs obligatoires (docs/guide/securite-github.md) :
-# seul ce job a le droit d'écrire dans le registre (SEC-24). Signature cosign et SBOM : jalon M10.
+# Publication de l'image sur ghcr.io/tiotbenjy/lockmaster, à chaque tag de version vX.Y.Z posé sur un
+# commit de main. Environnement « release » protégé, avec relecteur obligatoire
+# (docs/guide/securite-github.md) : seul ce job peut écrire dans le registre (SEC-24). L'image publiée
+# est celle que ce job a construite puis testée (tests et procédure compose). Signature cosign et
+# SBOM : jalon M10.
 name: Publication
 
 on:
@@ -17,7 +19,7 @@ jobs:
   image:
     name: Image sur ghcr.io
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment: release
     permissions:
       contents: read
@@ -25,18 +27,29 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
+      - name: Tag de version exacte, sur un commit de main, égal à package.json
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          test "$TAG" = "v$(node -p "require('./package.json').version")"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - name: Le tag correspond à la version de package.json
-        env:
-          TAG: ${{ github.ref_name }}
-        run: test "$TAG" = "v$(node -p "require('./package.json').version")"
+      - run: pnpm check
+      - run: pnpm test
       - run: pnpm image
-      - name: Publication (version et version majeure)
+      - name: Image testée avant publication (procédure compose)
+        run: |
+          systemctl --user start podman.socket
+          sh test/deliverables/image.sh podman
+      - name: Publication (version, et version majeure)
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTOR: ${{ github.actor }}
@@ -44,6 +57,6 @@ jobs:
           version=$(node -p "require('./package.json').version")
           image=ghcr.io/tiotbenjy/lockmaster
           printf '%s' "$TOKEN" | podman login ghcr.io --username "$ACTOR" --password-stdin
-          podman tag "$image:$version" "$image:${version%%.*}"
           podman push "$image:$version"
+          podman tag "$image:$version" "$image:${version%%.*}"
           podman push "$image:${version%%.*}"

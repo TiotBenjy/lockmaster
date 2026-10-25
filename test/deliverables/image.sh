@@ -92,6 +92,7 @@ refuse "repo : fichiers publiés en lecture seule" compose exec -T repo sh -c 't
 interfaces=$(compose exec -T signer /app/node/bin/node -e 'console.log("if=" + require("fs").readdirSync("/sys/class/net").join(","))' 2>&1 |
   sed -n 's/.*if=//p' | tr -cd 'a-z0-9,')
 expect "signer : aucune interface réseau hors lo" lo "$interfaces"
+check "témoin : données du signataire présentes (vues par le signataire)" compose exec -T signer sh -c 'test -f /var/lib/lockmaster-signer/signer.db'
 refuse "application : données du signataire illisibles" compose exec -T lockmaster sh -c 'ls /var/lib/lockmaster-signer'
 expect "application : volume du signataire non monté" 0 \
   "$(compose exec -T lockmaster sh -c 'grep -c " /var/lib/lockmaster-signer " /proc/self/mountinfo' 2>/dev/null | tr -d '\r' || true)"

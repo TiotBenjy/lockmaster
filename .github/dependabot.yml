@@ -48,6 +48,8 @@ updates:
       interval: "weekly"
       day: "monday"
       timezone: "Europe/Paris"
+    cooldown:
+      default-days: 7
     labels: ["dépendances", "livraison"]
     commit-message:
       prefix: "build(image)"
