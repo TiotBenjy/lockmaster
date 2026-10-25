@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildServer } from '../../../src/http/server.js';
-import { testDeps } from '../../helpers/deps.js';
+import { testConfig, testDeps } from '../../helpers/deps.js';
+
+// CSP d'ADR-0004 (amendée par ADR-0011 : font-src 'self'), à l'identique.
+const ADR_0004_CSP =
+  "default-src 'none';script-src 'self';style-src 'self';font-src 'self';img-src 'self' data:;" +
+  "connect-src 'self';form-action 'self';frame-ancestors 'none';base-uri 'none'";
 
 type Server = Awaited<ReturnType<typeof buildServer>>;
 const servers: Server[] = [];
@@ -51,11 +56,7 @@ describe('serveur HTTP : en-têtes de sécurité (docs/02 §3.6)', () => {
   it.each(['/healthz', '/absente'])('présents sur %s', async (url) => {
     const { app } = await server();
     const res = await app.inject({ method: 'GET', url });
-    const csp = String(res.headers['content-security-policy']);
-    expect(csp).toContain("default-src 'self'");
-    expect(csp).toContain("frame-ancestors 'none'");
-    expect(csp).toContain("object-src 'none'");
-    expect(csp).not.toContain('unsafe');
+    expect(res.headers['content-security-policy']).toBe(ADR_0004_CSP);
     expect(res.headers['x-content-type-options']).toBe('nosniff');
     expect(res.headers['referrer-policy']).toBe('no-referrer');
     expect(res.headers['cross-origin-opener-policy']).toBe('same-origin');
@@ -63,6 +64,18 @@ describe('serveur HTTP : en-têtes de sécurité (docs/02 §3.6)', () => {
     expect(res.headers['permissions-policy']).toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=()');
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.headers['x-powered-by']).toBeUndefined();
+  });
+
+  it('envoie HSTS quand public_url est en https, pas en http', async () => {
+    const https = await server();
+    const res = await https.app.inject({ method: 'GET', url: '/healthz' });
+    expect(res.headers['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
+
+    const plain = await buildServer(testDeps(testConfig({ server: { public_url: 'http://127.0.0.1:8080' } })));
+    servers.push(plain);
+    expect(
+      (await plain.inject({ method: 'GET', url: '/healthz' })).headers['strict-transport-security'],
+    ).toBeUndefined();
   });
 
   it("n'active pas CORS", async () => {
@@ -124,6 +137,65 @@ describe('serveur HTTP : erreurs sans fuite', () => {
     });
     expect(res.statusCode).toBe(413);
     expect((res.json() as { error: { code: string } }).error.code).toBe('PAYLOAD_TOO_LARGE');
+  });
+});
+
+describe('serveur HTTP : erreurs du framework et codes hors plage', () => {
+  it('une URL mal encodée renvoie le format commun, sans la refléter, avec les en-têtes de sécurité', async () => {
+    const { app } = await server();
+    const res = await app.inject({ method: 'GET', url: '/%zz<script>' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: { code: 'VALIDATION', message: 'requête invalide', requestId: res.headers['x-request-id'] },
+    });
+    expect(res.body).not.toContain('script');
+    expect(res.headers['content-security-policy']).toBe(ADR_0004_CSP);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  it.each([200, 302, 600])('une erreur levée avec statusCode %i devient 500 INTERNAL', async (statusCode) => {
+    const { app } = await server({
+      register: (instance) => {
+        instance.get('/odd', { config: { public: true } }, async () => {
+          throw Object.assign(new Error('étrange'), { statusCode });
+        });
+      },
+    });
+    const res = await app.inject({ method: 'GET', url: '/odd' });
+    expect(res.statusCode).toBe(500);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('INTERNAL');
+  });
+
+  it('ne journalise pas la chaîne de requête (jetons, codes OIDC)', async () => {
+    const { app, deps } = await server();
+    await app.inject({ method: 'GET', url: '/healthz?token=valeur-secrete' });
+    expect(deps.logs.text()).toContain('/healthz');
+    expect(deps.logs.text()).not.toContain('valeur-secrete');
+  });
+});
+
+describe('serveur HTTP : autorisation appliquée à chaque requête (invariant 7)', () => {
+  it('une route déclarée avec une permission répond 401 sans identifiants', async () => {
+    const { app } = await server({
+      register: (instance) => {
+        instance.get('/api/v1/system/status', { config: { perm: 'system:read' } }, async () => 'SECRET');
+        instance.post(
+          '/api/v1/repos/:repo/packages',
+          { config: { perm: 'pkg:upload', repoParam: 'repo' } },
+          async () => 'ok',
+        );
+      },
+    });
+    for (const [method, url] of [
+      ['GET', '/api/v1/system/status'],
+      ['HEAD', '/api/v1/system/status'],
+      ['POST', '/api/v1/repos/debian/packages'],
+    ] as const) {
+      const res = await app.inject({ method, url });
+      expect(res.statusCode).toBe(401);
+      expect(res.body).not.toContain('SECRET');
+    }
   });
 });
 

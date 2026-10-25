@@ -1,7 +1,8 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 // Format d'erreur unique (docs/06 §1) : { error: { code, message, requestId } }. Jamais de pile, de
-// chemin ni de SQL. Une erreur inattendue (5xx) est journalisée avec son détail et renvoyée générique.
+// chemin ni de SQL. Une erreur inattendue (5xx, ou code hors de 400..599) est journalisée avec son
+// détail et renvoyée générique.
 
 const CLIENT_ERRORS: Record<number, [code: string, message: string]> = {
   400: ['VALIDATION', 'requête invalide'],
@@ -16,7 +17,10 @@ const CLIENT_ERRORS: Record<number, [code: string, message: string]> = {
   429: ['RATE_LIMITED', 'trop de requêtes'],
 };
 
-function send(reply: FastifyReply, request: FastifyRequest, status: number, code: string, message: string) {
+/** Envoie une erreur au format commun ; le message est toujours l'un des messages génériques ci-dessus. */
+export function sendError(reply: FastifyReply, request: FastifyRequest, status: number) {
+  const [code, message] =
+    CLIENT_ERRORS[status] ?? (status < 500 ? ['BAD_REQUEST', 'requête refusée'] : ['INTERNAL', 'erreur interne']);
   return reply
     .code(status)
     .type('application/json')
@@ -24,17 +28,16 @@ function send(reply: FastifyReply, request: FastifyRequest, status: number, code
 }
 
 export function registerErrorHandlers(app: FastifyInstance): void {
-  app.setNotFoundHandler((request, reply) => send(reply, request, 404, 'NOT_FOUND', 'ressource introuvable'));
+  // Seul gestionnaire 404 du serveur (un autre échapperait au contrôle d'accès : check-forbidden.mjs).
+  app.setNotFoundHandler((request, reply) => sendError(reply, request, 404));
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
     const status = error.statusCode ?? 500;
-    const known = CLIENT_ERRORS[status];
-    if (status < 500 && known) {
+    if (status >= 400 && status < 500) {
       request.log.info({ event: 'http.client_error', status, code: error.code }, 'requête refusée');
-      return send(reply, request, status, known[0], known[1]);
+      return sendError(reply, request, status);
     }
-    if (status < 500) return send(reply, request, status, 'BAD_REQUEST', 'requête refusée');
-    request.log.error({ event: 'http.error', err: error }, 'erreur interne');
-    return send(reply, request, 500, 'INTERNAL', 'erreur interne');
+    request.log.error({ event: 'http.error', status, err: error }, 'erreur interne');
+    return sendError(reply, request, 500);
   });
 }

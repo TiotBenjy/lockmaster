@@ -1,14 +1,17 @@
-import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { closeSync, constants, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { LockmasterError } from '../domain/errors.js';
 
 // Lecture des fichiers secrets (*_file, clé maîtresse) : docs/02 §3.3, deploy/lockmaster.example.toml.
-// Refus si le fichier est accessible à « others » ou n'appartient ni à root ni au compte courant.
-// Les contrôles portent sur le descripteur ouvert (fstat), donc sur la cible d'un éventuel lien.
+// Refus si le fichier est accessible à « others », modifiable par le groupe, lisible par un groupe
+// auquel le service n'appartient pas, ou s'il n'appartient ni à root ni au compte courant
+// (référence : root:lockmaster 0440). Les contrôles portent sur le descripteur ouvert (fstat), donc
+// sur la cible d'un éventuel lien.
 
 export interface SecretFileOptions {
   maxBytes?: number;
   allowedUids?: readonly number[];
+  allowedGids?: readonly number[];
 }
 
 const DEFAULT_MAX_BYTES = 64 * 1024;
@@ -16,6 +19,11 @@ const DEFAULT_MAX_BYTES = 64 * 1024;
 function defaultUids(): number[] {
   const uid = process.getuid?.();
   return uid === undefined ? [0] : [0, uid];
+}
+
+function defaultGids(): number[] {
+  const gid = process.getgid?.();
+  return [0, ...(gid === undefined ? [] : [gid]), ...(process.getgroups?.() ?? [])];
 }
 
 function fail(code: string, path: string, reason: string): LockmasterError {
@@ -36,11 +44,15 @@ export function readSecretFile(path: string, options: SecretFileOptions = {}): B
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile()) throw fail('SECRET_FILE_NOT_REGULAR', path, "ce n'est pas un fichier ordinaire");
-    if ((stat.mode & 0o007) !== 0) {
-      throw fail('SECRET_FILE_PERMISSIONS', path, `accessible à « others » (mode ${(stat.mode & 0o777).toString(8)})`);
+    const mode = (stat.mode & 0o777).toString(8);
+    if ((stat.mode & 0o027) !== 0) {
+      throw fail('SECRET_FILE_PERMISSIONS', path, `modifiable par le groupe ou accessible à « others » (mode ${mode})`);
     }
     if (!allowedUids.includes(stat.uid)) {
       throw fail('SECRET_FILE_OWNER', path, `propriétaire ${stat.uid} non autorisé (root ou le compte du service)`);
+    }
+    if ((stat.mode & 0o040) !== 0 && !(options.allowedGids ?? defaultGids()).includes(stat.gid)) {
+      throw fail('SECRET_FILE_GROUP', path, `lisible par le groupe ${stat.gid}, qui n'est pas celui du service`);
     }
     if (stat.size > maxBytes) throw fail('SECRET_FILE_TOO_LARGE', path, `plus de ${maxBytes} octets`);
     const buffer = Buffer.alloc(stat.size);
@@ -54,6 +66,25 @@ export function readSecretFile(path: string, options: SecretFileOptions = {}): B
   } finally {
     closeSync(fd);
   }
+}
+
+/**
+ * Chemin réel (liens symboliques résolus) ; pour un chemin qui n'existe pas encore, résout le plus
+ * proche ancêtre existant et y ajoute le reste.
+ */
+export function realpathLenient(path: string): string {
+  const absolute = resolve(path);
+  try {
+    return realpathSync(absolute);
+  } catch {
+    const parent = dirname(absolute);
+    return parent === absolute ? absolute : join(realpathLenient(parent), basename(absolute));
+  }
+}
+
+/** Comme `isInside`, sur les chemins lexicaux et sur les chemins réels (liens résolus). */
+export function isInsideReally(parent: string, child: string): boolean {
+  return isInside(parent, child) || isInside(realpathLenient(parent), realpathLenient(child));
 }
 
 /** Vrai si `child` désigne `parent` ou un chemin situé dessous (après normalisation). */

@@ -59,6 +59,10 @@ for (const rel of walk(root)) {
   for (const finding of aiTypoFindings(text)) findings.push(`${rel} : caractère interdit ${finding}`);
   if (!isSource) continue;
   const rules = rel.startsWith('src/web/') ? [...SRC_RULES, ...WEB_RULES] : SRC_RULES;
+  // Un gestionnaire 404 supplémentaire échapperait au contrôle d'accès (src/http/authorize.ts).
+  if (rel !== 'src/http/errors.ts' && /\bsetNotFoundHandler\s*\(/.test(text)) {
+    findings.push(`${rel} : setNotFoundHandler réservé à src/http/errors.ts (invariant 7)`);
+  }
   for (const [pattern, message] of rules) {
     if (pattern.test(text)) findings.push(`${rel} : ${message}`);
   }
