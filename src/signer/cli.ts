@@ -28,7 +28,7 @@ const OPTIONS = {
 const USAGE = `Usage : lockmaster signer <commande> [--config <fichier>]
 
   lockmaster signer init                 clé maîtresse du signataire et base (idempotent)
-  lockmaster signer serve                écoute sur socket.path de la configuration
+  lockmaster signer serve                écoute sur server.socket de la configuration
   lockmaster signer serve --socket P     écoute sur le chemin P
   lockmaster signer serve --socket-activation   socket transmis par systemd
 `;

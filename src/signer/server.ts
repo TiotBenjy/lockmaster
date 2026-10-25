@@ -8,7 +8,7 @@ import { LockmasterError } from '../domain/errors.js';
 import { encodeFrame, FrameReader, parseRequest, type SignerRequest } from '../domain/signer-protocol.js';
 import { createLogger, type Logger } from '../log.js';
 import type { SignerConfig } from './config.js';
-import { listenOnFd, listenOnPath } from './socket.js';
+import { expectedSocketGroup, listenOnFd, listenOnPath } from './socket.js';
 import { isSignerDatabase, openSignerDatabase, signerDatabasePath } from './store.js';
 
 // Service de signature (ADR-0009) : socket Unix uniquement, une requête par connexion, délai borné.
@@ -20,7 +20,7 @@ const MAX_CONNECTIONS = 8;
 const CLOSE_GRACE_MS = 1_000;
 
 export interface SignerStartOptions {
-  /** Descripteur transmis par systemd (activation par socket) ; sinon écoute sur socket.path. */
+  /** Descripteur transmis par systemd (activation par socket) ; sinon écoute sur server.socket. */
   fd?: number;
   logDestination?: DestinationStream;
 }
@@ -40,11 +40,11 @@ function notInitialized(reason: string): LockmasterError {
  * du signataire est justement ce groupe : la clé doit alors être en 0400.
  */
 export function keyGroups(config: SignerConfig): number[] {
-  let socketGroup: number | undefined;
+  let socketGroup: number;
   try {
-    const dir = lstatSync(dirname(config.socket.path));
-    // Même règle que la vérification du socket : groupe du dossier s'il est setgid, sinon egid.
-    socketGroup = (dir.mode & 0o2000) !== 0 ? dir.gid : process.getegid?.();
+    // Même règle que la vérification du socket (src/signer/socket.ts).
+    const socket = config.server.socket;
+    socketGroup = expectedSocketGroup(config.server.socket_group, lstatSync(dirname(socket)), socket);
   } catch {
     return [0];
   }
@@ -72,8 +72,9 @@ function handle(request: SignerRequest): Record<string, unknown> {
   }
 }
 
-function serveConnection(socket: Socket, logger: Logger, timeoutMs: number): void {
-  const reader = new FrameReader();
+function serveConnection(socket: Socket, logger: Logger, limits: SignerConfig['server']): void {
+  const timeoutMs = limits.request_timeout;
+  const reader = new FrameReader(limits.max_message_bytes);
   let finished = false;
   const finish = (response: unknown) => {
     if (finished) return;
@@ -112,12 +113,12 @@ export async function startSigner(config: SignerConfig, options: SignerStartOpti
   const server = createServer((socket) => {
     connections.add(socket);
     socket.on('close', () => connections.delete(socket));
-    serveConnection(socket, logger, config.socket.timeout);
+    serveConnection(socket, logger, config.server);
   });
   server.maxConnections = MAX_CONNECTIONS;
   server.on('drop', () => logger.warn({ event: 'signer.connection_dropped' }, 'connection limit reached'));
   try {
-    if (options.fd === undefined) await listenOnPath(server, config.socket.path);
+    if (options.fd === undefined) await listenOnPath(server, config.server.socket, config.server.socket_group);
     else await listenOnFd(server, options.fd);
   } catch (error) {
     db.close();

@@ -2,6 +2,7 @@ import { lstatSync, type Stats, unlinkSync } from 'node:fs';
 import type { Server } from 'node:net';
 import { dirname } from 'node:path';
 import { LockmasterError } from '../domain/errors.js';
+import { resolveGroup } from '../system/groups.js';
 import { assertUnixListener } from './activation.js';
 
 // Écoute sur un chemin (--socket, conteneurs). Garanties (ADR-0009, docs/02 §3.7 bis) :
@@ -37,14 +38,28 @@ function removeOrphan(path: string): void {
   unlinkSync(path);
 }
 
-function verify(path: string, dir: Stats): void {
+/**
+ * Groupe que doit porter le socket : `server.socket_group` (nom ou numéro) ; s'il est vide, le
+ * groupe du dossier quand il est setgid, sinon le groupe effectif du processus.
+ */
+export function expectedSocketGroup(socketGroup: string, dir: Stats, path: string): number {
+  if (socketGroup !== '') {
+    try {
+      return resolveGroup(socketGroup);
+    } catch {
+      throw unsafe(path, `groupe « ${socketGroup} » introuvable`);
+    }
+  }
+  return (dir.mode & 0o2000) !== 0 ? dir.gid : (process.getegid?.() ?? -1);
+}
+
+function verify(path: string, expectedGid: number): void {
   const socket = lstatSync(path);
   if (!socket.isSocket()) throw unsafe(path, "ce n'est pas un socket");
   if (socket.uid !== process.geteuid?.()) throw unsafe(path, `propriétaire ${socket.uid}, pas le signataire`);
   const mode = socket.mode & 0o777;
   if (mode !== SOCKET_MODE) throw unsafe(path, `mode ${mode.toString(8)} au lieu de 660`);
-  const expectedGid = (dir.mode & 0o2000) !== 0 ? dir.gid : process.getegid?.();
-  if (socket.gid !== expectedGid) throw unsafe(path, `groupe ${socket.gid} au lieu de ${String(expectedGid)}`);
+  if (socket.gid !== expectedGid) throw unsafe(path, `groupe ${socket.gid} au lieu de ${expectedGid}`);
 }
 
 function listen(server: Server, options: { path: string } | { fd: number }): Promise<void> {
@@ -62,8 +77,9 @@ async function closeAndThrow(server: Server, error: unknown): Promise<never> {
   throw error;
 }
 
-export async function listenOnPath(server: Server, path: string): Promise<void> {
+export async function listenOnPath(server: Server, path: string, socketGroup: string): Promise<void> {
   const dir = checkDirectory(path);
+  const expectedGid = expectedSocketGroup(socketGroup, dir, path);
   removeOrphan(path);
   // Le masque fixe les droits à la création : aucune fenêtre où le socket serait plus ouvert.
   const previous = process.umask(0o117);
@@ -73,7 +89,7 @@ export async function listenOnPath(server: Server, path: string): Promise<void> 
     process.umask(previous);
   }
   try {
-    verify(path, dir);
+    verify(path, expectedGid);
   } catch (error) {
     await closeAndThrow(server, error);
   }
