@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { z } from 'zod';
 import { applyEnvOverrides } from '../config/env.js';
@@ -34,8 +34,27 @@ export function resolveSignerConfigPath(cliPath: string | undefined, env: Env): 
   return chosen ? { path: chosen, explicit: true } : { path: DEFAULT_SIGNER_CONFIG_PATH, explicit: false };
 }
 
-export function loadSignerConfig(options: { path: string; env: Env; explicit?: boolean }): SignerConfig {
-  const fileMissing = options.explicit === false && !existsSync(options.path);
+/** Seule l'absence du fichier PAR DÉFAUT est tolérée ; un fichier illisible n'est jamais ignoré. */
+function defaultFileAbsent(path: string, explicit: boolean): boolean {
+  if (explicit) return false;
+  try {
+    lstatSync(path);
+    return false;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+}
+
+export interface SignerConfigOptions {
+  path: string;
+  env: Env;
+  explicit?: boolean;
+  /** `--socket` : validé par le schéma comme toute autre valeur (chemin absolu, sans « .. »). */
+  socketPath?: string;
+}
+
+export function loadSignerConfig(options: SignerConfigOptions): SignerConfig {
+  const fileMissing = defaultFileAbsent(options.path, options.explicit ?? true);
   const fromFile = fileMissing ? {} : readTomlFile(options.path);
   const doc = applyEnvOverrides(fromFile, options.env, {
     prefix: 'LOCKMASTER_SIGNER__',
@@ -43,7 +62,12 @@ export function loadSignerConfig(options: { path: string; env: Env; explicit?: b
     fileOnly: [],
   });
   const baseDir = fileMissing ? '/' : realpathLenient(dirname(resolve(options.path)));
-  const result = signerConfigSchema.safeParse(resolveRelativePaths(doc, baseDir));
+  const resolved = resolveRelativePaths(doc, baseDir) as Record<string, unknown>;
+  if (options.socketPath !== undefined) {
+    const socket = (resolved['socket'] ?? {}) as Record<string, unknown>;
+    resolved['socket'] = { ...socket, path: options.socketPath };
+  }
+  const result = signerConfigSchema.safeParse(resolved);
   if (!result.success) throw formatIssues(options.path, result.error);
   if (isInsideReally(result.data.server.data_dir, result.data.security.master_key_file)) {
     throw new LockmasterError('CONFIG_INVALID', 'security.master_key_file ne doit pas se trouver sous server.data_dir');

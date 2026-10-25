@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LockmasterError } from '../../../src/domain/errors.js';
-import { activationFd } from '../../../src/signer/activation.js';
+import { activationFd, assertUnixListener } from '../../../src/signer/activation.js';
 
 // Activation par socket systemd (sd_listen_fds) : le socket est le descripteur 3.
 
@@ -18,4 +18,17 @@ describe('activationFd', () => {
   ])('refuse %j (%s)', (env, _reason) => {
     expect(() => activationFd(env, 1234)).toThrow(LockmasterError);
   });
+});
+
+describe('assertUnixListener', () => {
+  it('accepte un socket Unix (adresse sous forme de chemin)', () => {
+    expect(() => assertUnixListener('/run/lockmaster-sign/sign.sock')).not.toThrow();
+  });
+
+  it.each([[{ address: '0.0.0.0', family: 'IPv4', port: 9000 }], [null], ['']])(
+    "refuse un descripteur transmis qui n'est pas un socket Unix : %j",
+    (address) => {
+      expect(() => assertUnixListener(address)).toThrow(LockmasterError);
+    },
+  );
 });

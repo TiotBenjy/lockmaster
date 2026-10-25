@@ -1,5 +1,7 @@
-import { existsSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeFrame } from '../../../src/domain/signer-protocol.js';
 import { loadSignerConfig } from '../../../src/signer/config.js';
@@ -50,6 +52,55 @@ describe('lockmaster signer init / serve', () => {
   it("refuse une clé de la configuration de l'application (clé inconnue)", async () => {
     const install = signerInstallation('\n[http]\nlisten = ":8080"\n');
     cleanups.push(install.cleanup);
+    expect((await signerCli(['init', '--config', install.config])).code).toBe(78);
+  });
+
+  it("refuse root (77) et les combinaisons d'options incohérentes (64)", async () => {
+    const install = signerInstallation();
+    cleanups.push(install.cleanup);
+    expect((await signerCli(['init', '--config', install.config], { uid: 0 })).code).toBe(77);
+    expect((await signerCli(['serve', '--config', install.config], { uid: 0 })).code).toBe(77);
+    expect((await signerCli(['init', '--socket', '/run/x.sock', '--config', install.config])).code).toBe(64);
+    expect((await signerCli(['serve', '--socket', '/run/x.sock', '--socket-activation'])).code).toBe(64);
+  });
+
+  it.each([
+    ['8080', 'nombre interprété comme un port TCP'],
+    ['relatif.sock', 'chemin relatif'],
+    ['/run/../tmp/x.sock', 'segment ..'],
+  ])('refuse --socket %s (%s)', async (socket) => {
+    const install = await initialized();
+    expect((await signerCli(['serve', '--socket', socket, '--config', install.config])).code).toBe(78);
+  });
+
+  it("refuse un data_dir existant accessible à d'autres comptes, ou qui est un lien", async () => {
+    const install = signerInstallation();
+    cleanups.push(install.cleanup);
+    mkdirSync(install.dataDir, { mode: 0o750 });
+    chmodSync(install.dataDir, 0o750);
+    expect((await signerCli(['init', '--config', install.config])).code).toBe(1);
+    rmSync(install.dataDir, { recursive: true });
+    mkdirSync(join(install.root, 'ailleurs'), { mode: 0o700 });
+    symlinkSync(join(install.root, 'ailleurs'), install.dataDir);
+    expect((await signerCli(['init', '--config', install.config])).code).toBe(1);
+  });
+
+  it("refuse une base existante qui n'est pas celle du signataire", async () => {
+    const install = signerInstallation();
+    cleanups.push(install.cleanup);
+    mkdirSync(install.dataDir, { mode: 0o700 });
+    const foreign = new Database(join(install.dataDir, 'signer.db'));
+    foreign.exec('CREATE TABLE autre (x)');
+    foreign.close();
+    const result = await signerCli(['init', '--config', install.config]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('signataire');
+  });
+
+  it('un fichier de configuration désigné mais illisible est une erreur, jamais ignoré', async () => {
+    const install = signerInstallation();
+    cleanups.push(install.cleanup);
+    chmodSync(install.config, 0o000);
     expect((await signerCli(['init', '--config', install.config])).code).toBe(78);
   });
 });
@@ -106,5 +157,34 @@ describe('socket du signataire', () => {
     await expect(startSigner(config, { logDestination: new LogCapture() })).rejects.toMatchObject({
       code: 'SIGNER_SOCKET_UNSAFE',
     });
+  });
+
+  it("refuse un dossier de socket modifiable par le groupe (l'application pourrait remplacer le socket)", async () => {
+    const install = await initialized();
+    chmodSync(join(install.socket, '..'), 0o2770);
+    await expect(
+      startSigner(loadSignerConfig({ path: install.config, env: {} }), { logDestination: new LogCapture() }),
+    ).rejects.toMatchObject({ code: 'SIGNER_SOCKET_UNSAFE' });
+  });
+
+  it('libère les emplacements des clients qui gardent leur connexion ouverte après la réponse', async () => {
+    const { socket } = await running();
+    // 8 clients (la limite) reçoivent leur réponse mais ne ferment jamais leur côté.
+    const halfOpen = await Promise.all(
+      Array.from(
+        { length: 8 },
+        () =>
+          new Promise<ReturnType<typeof createConnection>>((resolve) => {
+            const connection = createConnection({ path: socket, allowHalfOpen: true });
+            connection.on('connect', () => connection.write(encodeFrame({ op: 'ping' })));
+            connection.on('data', () => resolve(connection));
+          }),
+      ),
+    );
+    cleanups.push(() => {
+      for (const connection of halfOpen) connection.destroy();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(await createSignerClient({ socketPath: socket, timeoutMs: 2000 }).ping()).toBe(true);
   });
 });

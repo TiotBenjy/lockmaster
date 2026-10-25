@@ -16,3 +16,13 @@ export function activationFd(env: Readonly<Record<string, string | undefined>>, 
   }
   return SD_LISTEN_FDS_START;
 }
+
+/**
+ * Un socket transmis par systemd pourrait être TCP (surcharge de l'unité) et l'hériter contournerait
+ * PrivateNetwork : seule une adresse de socket Unix (chemin) est acceptée.
+ */
+export function assertUnixListener(address: unknown): void {
+  if (typeof address !== 'string' || address === '') {
+    throw new LockmasterError('SIGNER_ACTIVATION_INVALID', "le socket transmis n'est pas un socket Unix");
+  }
+}

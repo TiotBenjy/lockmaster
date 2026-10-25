@@ -40,12 +40,15 @@ ${extra}`,
 }
 
 /** Lance la CLI du signataire dans le processus de test, sorties capturées. */
-export async function signerCli(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+export async function signerCli(
+  args: string[],
+  overrides: { uid?: number } = {},
+): Promise<{ code: number; stdout: string; stderr: string }> {
   let stdout = '';
   let stderr = '';
   const code = await runSignerCli(args, {
     env: {},
-    uid: process.getuid?.() ?? 1000,
+    uid: overrides.uid ?? process.getuid?.() ?? 1000,
     pid: process.pid,
     stdout: { write: (text: string) => (stdout += text) },
     stderr: { write: (text: string) => (stderr += text) },

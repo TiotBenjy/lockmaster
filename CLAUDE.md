@@ -72,7 +72,7 @@ Bibliothèques déjà choisies (ne pas en ajouter d'équivalentes) : `fastify`, 
 `croner`, `pino`, `ulid`, `nodemailer` (M8), `ldapts` (connecteur Active Directory, M6),
 `@alpinejs/csp` (Alpine.js **build CSP**, réactivité de l'UI, empaqueté avec nos composants par
 esbuild dans `static/app.js`). Le signataire n'utilise que `openpgp`, `node:crypto`,
-`better-sqlite3`, `zod`, `pino` et les parseurs de `src/formats/`. Dev : `typescript`, `@biomejs/biome`, `vitest`, `@vitest/coverage-v8`,
+`better-sqlite3`, `zod`, `pino`, `smol-toml` (lecture de `signer.toml`) et les parseurs de `src/formats/`. Dev : `typescript`, `@biomejs/biome`, `vitest`, `@vitest/coverage-v8`,
 `fast-check`, `testcontainers`, `tsx`, `esbuild`, `dependency-cruiser` (règles de couches), `happy-dom`
 (tests des composants Alpine), `@playwright/test` et `@axe-core/playwright` (parcours UI et
 accessibilité), `@phosphor-icons/core` (source des icônes, extraites au build). Décodeur xz : à choisir en M1 par ADR.

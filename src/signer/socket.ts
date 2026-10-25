@@ -1,11 +1,14 @@
-import { lstatSync, statSync, unlinkSync } from 'node:fs';
+import { lstatSync, type Stats, unlinkSync } from 'node:fs';
 import type { Server } from 'node:net';
 import { dirname } from 'node:path';
 import { LockmasterError } from '../domain/errors.js';
+import { assertUnixListener } from './activation.js';
 
-// Écoute sur un chemin (--socket, conteneurs) : le socket doit naître en 0660, avec le groupe du
-// dossier setgid (lockmaster-sign, ADR-0009), dans un dossier que personne d'autre ne peut modifier.
-// Un socket orphelin (arrêt brutal) est remplacé ; tout autre fichier à cet emplacement est refusé.
+// Écoute sur un chemin (--socket, conteneurs). Garanties (ADR-0009, docs/02 §3.7 bis) :
+//  - le dossier du socket appartient à root ou au signataire et n'est modifiable ni par le groupe
+//    ni par « others » : l'application (membre du groupe) ne peut ni supprimer ni remplacer le socket ;
+//  - le socket naît en 0660 (masque), appartient au signataire, avec le groupe du dossier setgid ;
+//  - un socket orphelin (arrêt brutal) est remplacé ; tout autre fichier à cet emplacement est refusé.
 
 const SOCKET_MODE = 0o660;
 
@@ -13,11 +16,18 @@ function unsafe(path: string, reason: string): LockmasterError {
   return new LockmasterError('SIGNER_SOCKET_UNSAFE', `socket ${path} : ${reason}`);
 }
 
-function prepare(path: string): void {
+function checkDirectory(path: string): Stats {
   const dir = lstatSync(dirname(path));
   if (!dir.isDirectory()) throw unsafe(path, "le dossier parent n'est pas un dossier");
-  if ((dir.mode & 0o002) !== 0) throw unsafe(path, 'dossier parent modifiable par « others »');
-  let existing: ReturnType<typeof lstatSync> | undefined;
+  if (![0, process.geteuid?.()].includes(dir.uid)) {
+    throw unsafe(path, `dossier parent appartenant à ${dir.uid}, ni root ni le signataire`);
+  }
+  if ((dir.mode & 0o022) !== 0) throw unsafe(path, 'dossier parent modifiable par le groupe ou « others »');
+  return dir;
+}
+
+function removeOrphan(path: string): void {
+  let existing: Stats;
   try {
     existing = lstatSync(path);
   } catch {
@@ -27,44 +37,54 @@ function prepare(path: string): void {
   unlinkSync(path);
 }
 
-function verify(path: string): void {
-  const socket = statSync(path);
-  const dir = statSync(dirname(path));
-  if ((socket.mode & 0o777) !== SOCKET_MODE)
-    throw unsafe(path, `mode ${(socket.mode & 0o777).toString(8)} au lieu de 660`);
+function verify(path: string, dir: Stats): void {
+  const socket = lstatSync(path);
+  if (!socket.isSocket()) throw unsafe(path, "ce n'est pas un socket");
+  if (socket.uid !== process.geteuid?.()) throw unsafe(path, `propriétaire ${socket.uid}, pas le signataire`);
+  const mode = socket.mode & 0o777;
+  if (mode !== SOCKET_MODE) throw unsafe(path, `mode ${mode.toString(8)} au lieu de 660`);
   const expectedGid = (dir.mode & 0o2000) !== 0 ? dir.gid : process.getegid?.();
   if (socket.gid !== expectedGid) throw unsafe(path, `groupe ${socket.gid} au lieu de ${String(expectedGid)}`);
 }
 
-export async function listenOnPath(server: Server, path: string): Promise<void> {
-  prepare(path);
-  // Le masque fixe les droits à la création : aucune fenêtre où le socket serait plus ouvert.
-  const previous = process.umask(0o117);
-  try {
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', reject);
-      server.listen(path, () => {
-        server.off('error', reject);
-        resolve();
-      });
-    });
-  } finally {
-    process.umask(previous);
-  }
-  try {
-    verify(path);
-  } catch (error) {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-    throw error;
-  }
-}
-
-export async function listenOnFd(server: Server, fd: number): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+function listen(server: Server, options: { path: string } | { fd: number }): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen({ fd }, () => {
+    server.listen(options, () => {
       server.off('error', reject);
       resolve();
     });
   });
+}
+
+async function closeAndThrow(server: Server, error: unknown): Promise<never> {
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  throw error;
+}
+
+export async function listenOnPath(server: Server, path: string): Promise<void> {
+  const dir = checkDirectory(path);
+  removeOrphan(path);
+  // Le masque fixe les droits à la création : aucune fenêtre où le socket serait plus ouvert.
+  const previous = process.umask(0o117);
+  try {
+    await listen(server, { path });
+  } finally {
+    process.umask(previous);
+  }
+  try {
+    verify(path, dir);
+  } catch (error) {
+    await closeAndThrow(server, error);
+  }
+}
+
+/** Activation systemd : le descripteur transmis doit être un socket Unix (jamais un port TCP). */
+export async function listenOnFd(server: Server, fd: number): Promise<void> {
+  await listen(server, { fd });
+  try {
+    assertUnixListener(server.address());
+  } catch (error) {
+    await closeAndThrow(server, error);
+  }
 }
