@@ -1,5 +1,15 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -37,6 +47,7 @@ describe('postinstall de lockmaster-repo', () => {
   it('contient ses fonctions entre marqueurs', () => {
     expect(functions).toMatch(/create_repo_tree\(\)/);
     expect(functions).toMatch(/check_root_owned\(\)/);
+    expect(functions).toMatch(/create_sync_home\(\)/);
   });
 
   it('crée la racine et ses deux dossiers en 2750 quand la racine est absente', () => {
@@ -59,6 +70,25 @@ describe('postinstall de lockmaster-repo', () => {
     expect(result.status, result.stderr).toBe(0);
     expect(mode(victim)).toBe(0o700);
     expect(result.stderr).toMatch(/lien symbolique/);
+  });
+
+  it('crée le home du compte rsync, .ssh et authorized_keys (lisibles par le seul groupe) quand il est absent', () => {
+    const home = join(sandbox(), 'home', 'lockmaster-sync');
+    const result = run(`create_sync_home '${home}' '${group}' /srv/lockmaster-repo /usr/bin/rrsync`);
+    expect(result.status, result.stderr).toBe(0);
+    expect(mode(home)).toBe(0o750);
+    expect(mode(join(home, '.ssh'))).toBe(0o750);
+    const keys = join(home, '.ssh', 'authorized_keys');
+    expect(mode(keys)).toBe(0o640);
+    expect(readFileSync(keys, 'utf8')).toMatch(/command="\/usr\/bin\/rrsync \/srv\/lockmaster-repo",restrict/);
+  });
+
+  it("n'écrit rien dans un home existant (préparé à la main) et le signale", () => {
+    const home = sandbox();
+    const result = run(`create_sync_home '${home}' '${group}' /srv/lockmaster-repo /usr/bin/rrsync`);
+    expect(result.status, result.stderr).toBe(0);
+    expect(existsSync(join(home, '.ssh'))).toBe(false);
+    expect(result.stderr).toMatch(/doit appartenir à root/);
   });
 
   it('signale un home ou authorized_keys qui ne sont pas à root', () => {

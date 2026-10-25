@@ -25,7 +25,7 @@ Cet artefact est emballé de trois façons :
 
 | Livrable | Contenu | Outil |
 |---|---|---|
-| `.deb` (Debian 12/13) | `/usr/lib/lockmaster/{node,bin,*.mjs,node_modules,static}` + `/usr/bin/lockmaster` + unités systemd + `/etc/lockmaster/lockmaster.toml` (conffile) | **nfpm** (`packaging/nfpm.yaml`) |
+| `.deb` (Debian 12/13) | `/usr/lib/lockmaster/{node,app,bin/grype}` + `/usr/bin/lockmaster` + unité systemd + `/etc/lockmaster/lockmaster.toml` (conffile) | **nfpm** (`packaging/nfpm.yaml`) |
 | `.rpm` (Rocky/RHEL/Alma 9/10) | idem | **nfpm** (même fichier) |
 | Image OCI | base `debian:*-slim` épinglée par digest + Node 24 officiel + app + grype + `rsync` + `openssh-client` (cibles distantes), non-root | `packaging/Containerfile` (Docker **et** Podman/Buildah) |
 
@@ -82,12 +82,9 @@ Cet artefact est emballé de trois façons :
   (`["/app/node/bin/node", "/app/lockmaster.mjs", "healthcheck"]`), pas de curl. Pas de socket Docker,
   jamais. Base `debian:*-slim` plutôt que distroless : `rsync` et `ssh` sont nécessaires aux cibles
   distantes ; les trois livrables doivent rester fonctionnellement identiques.
-- Même arborescence dans les paquets (`/usr/lib/lockmaster`) et dans l'image (`/app`) : `node/bin/node`,
-  `bin/lockmaster` (lanceur sh), `bin/grype`, `lockmaster.mjs`, `lockmaster-signer.mjs` (bundle distinct,
-  ADR-0009), `node_modules/better-sqlite3`, `static/`. Le lanceur exécute le Node embarqué sur le bundle
-  de l'application, ou sur celui du signataire pour `lockmaster signer ...` ; dans les paquets,
-  `/usr/bin/lockmaster` est un lien vers lui. Précision apportée au jalon M0 : la première version de
-  cet ADR plaçait le bundle dans un sous-dossier `app/`, absent de l'image. La valeur par défaut de
+- Dans les paquets .deb/.rpm, `/usr/bin/lockmaster` est un petit script sh qui exécute
+  `/usr/lib/lockmaster/node/bin/node /usr/lib/lockmaster/app/lockmaster.mjs "$@"`. Grype est installé dans
+  `/usr/lib/lockmaster/bin/grype` (paquets) et `/app/bin/grype` (image) ; la valeur par défaut de
   `scanners.grype.binary` est déterminée par `lockmaster init` selon l'emballage.
 - Signature des images (cosign) et SBOM (CycloneDX) publiés avec chaque version.
 
