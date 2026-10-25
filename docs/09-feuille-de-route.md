@@ -32,18 +32,18 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
 - [x] `src/main.ts`, `src/app.ts` (objet `Deps`), `src/http/server.ts` (Fastify, helmet + CSP +
       Permissions-Policy, request-id, erreurs sans fuite, `/healthz`, `/readyz`), CLI minimale
       (`serve`, `init` minimal : clé maîtresse + base vide, `config check`, `healthcheck`)
-- [ ] `scripts/check-licenses.mjs` en CI : licences de l'arbre de production conformes à CLAUDE.md
+- [x] `scripts/check-licenses.mjs` en CI : licences de l'arbre de production conformes à CLAUDE.md
       §Licence ; licences tierces copiées dans les paquets (`/usr/share/doc/<paquet>/`) et l'image
 - [x] Hook `onRoute` : toute route doit déclarer `perm` ou `public` ; test
 - [x] Robustesse du processus (`docs/01` §4) : arrêt sur exception non gérée, arrêt propre sur
       `SIGTERM`, surveillance de la boucle d'événements, limites HTTP ; tests
-- [ ] `.dependency-cruiser.cjs` (règles de couches de `docs/01` §6 : `domain`/`formats` sans
+- [x] `.dependency-cruiser.cjs` (règles de couches de `docs/01` §6 : `domain`/`formats` sans
       infrastructure, `http`/`web` sans accès base, application sans `src/signer/`, `web/client` isolé)
       exécuté par `pnpm check` et en CI ; `src/app.ts` construit l'objet `Deps` (injection, aucun
       singleton mutable)
-- [ ] Squelette `test/contracts/` (une fonction de suite par interface) et `test/fakes/` ; la CI refuse
+- [x] Squelette `test/contracts/` (une fonction de suite par interface) et `test/fakes/` ; la CI refuse
       une implémentation d'interface sans appel à sa suite de conformité
-- [ ] Tests de garde : grep CI interdisant `child_process.exec(`, `eval(`, `new Function`,
+- [x] Tests de garde : grep CI interdisant `child_process.exec(`, `eval(`, `new Function`,
       `dangerouslySetInnerHTML`, `NODE_TLS_REJECT_UNAUTHORIZED` dans `src/`, `x-html`, `hx-on`,
       `style=` et `import 'alpinejs'` dans `src/web/`, ainsi que les caractères typographiques
       interdits par CLAUDE.md §Style d'écriture dans les fichiers du projet (mêmes règles que les hooks)
@@ -52,14 +52,14 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
       embarqué et vérifié par SHA-256, unité systemd durcie, utilisateur `lockmaster`, conffile)
 - [x] `packaging/Containerfile` multi-étapes, non-root, compatible `docker build` et `podman build` ;
       dossiers `/run/lockmaster-sign`, `/var/lib/lockmaster-signer`, `/var/lib/lockmaster` avec les propriétaires d'ADR-0007
-- [ ] Unités `packaging/systemd/` (`lockmaster.service`, `lockmaster-signer.socket`, `lockmaster-signer.service`),
+- [x] Unités `packaging/systemd/` (`lockmaster.service`, `lockmaster-signer.socket`, `lockmaster-signer.service`),
       `packaging/sysusers/lockmaster.conf`, `packaging/tmpfiles/lockmaster.conf` installées par les paquets ;
       `systemd-analyze verify` et `systemd-analyze security` (signataire <= 1,0, application <= 2,0) en CI
-- [ ] Quadlets `deploy/quadlet/` (deux comptes) validés par `quadlet -dryrun` en CI ; `deploy/compose.yaml`
+- [x] Quadlets `deploy/quadlet/` (deux comptes) validés par `quadlet -dryrun` en CI ; `deploy/compose.yaml`
       validé par `compose config`
 - [x] `packaging/nfpm-repo.yaml` : paquet `lockmaster-repo` (config nginx de référence, `/srv/lockmaster-repo`,
       groupe `lockmaster-repo`, utilisateur `lockmaster-sync` + rrsync, SELinux) ; test `nginx -t` après installation
-- [ ] `deploy/nginx/lockmaster-repo.container.conf` régénéré par `packaging/gen-nginx-container-conf.sh`
+- [x] `deploy/nginx/lockmaster-repo.container.conf` régénéré par `packaging/gen-nginx-container-conf.sh`
       (la CI échoue si le fichier commité diffère) ; `deploy/gen-test-cert.sh` (certificat auto-signé
       pour le service `repo` en test et en dev)
 - [ ] Sécurité du dépôt GitHub : workflows CodeQL (`javascript-typescript`) et `dependency-review` sur
@@ -67,23 +67,26 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
       dans `docs/guide/` : signalement privé de vulnérabilités, analyse des secrets avec protection à
       l'envoi, Dependabot (`.github/dependabot.yml`), branche principale protégée avec revue des
       `CODEOWNERS` (propriétaire : TiotBenjy) ; image publiée sur `ghcr.io/tiotbenjy/lockmaster`
-- [ ] `deploy/compose.yaml` (signer + lockmaster + clamav + repo), `deploy/quadlet/` ; CI GitHub Actions : check, test, build, package,
+- [x] `deploy/compose.yaml` (signer + lockmaster + clamav + repo), `deploy/quadlet/` ; CI GitHub Actions : check, test, build, package,
       image, test d'installation du .deb (Debian 12 et 13) et du .rpm (Rocky 9 et 10) qui vérifie `/healthz`
 
-État au 2026-10-26 : les cases restées vides exigent un passage vert de la CI, ou un réglage du dépôt
-GitHub (`docs/guide/securite-github.md`). Le premier passage de la CI (après le push du 2026-10-25) a
-échoué à l'installation des dépendances (passage à pnpm 12, corrigé par ADR-0014). Ce qu'elles
-décrivent est en place et vérifié en local par les scripts que lance la CI : gardes, contrats,
-licences et `pnpm audit` ; `test/deliverables/packages.sh` et `repo-package.sh` sur Debian 12,
-Debian 13, Rocky 9 et Rocky 10 (dont `systemd-analyze verify` et `security` : 0,3 pour le
-signataire, 1,4 pour l'application) ; `test/deliverables/image.sh` avec Podman rootless et Docker ;
-`quadlet -dryrun`, `compose config`, régénération de la configuration nginx. Le critère de sortie
-ci-dessous passe de même en local. Limites connues : le contexte SELinux est enregistré
-(`semanage`) mais son application aux fichiers ne se vérifie pas dans un conteneur : à constater sur
-un hôte Rocky réel avant de cocher ce point du critère de sortie, sinon à déclarer irréalisable en CI
-par un ADR ; les quadlets ne
-sont validés que par `quadlet -dryrun` ; l'image n'est publiée sur ghcr.io qu'au premier tag de
-version (`release.yml`). À cocher après le premier passage vert de la CI.
+État au 2026-10-26 : la CI est verte (constat du porteur), avec les mêmes scripts qu'en local :
+gardes, contrats, licences, `pnpm audit`, tests et fuzzing ; `test/deliverables/packages.sh` et
+`repo-package.sh` sur Debian 12, Debian 13, Rocky 9 et Rocky 10 (dont `systemd-analyze verify` et
+`security` : 0,3 pour le signataire, 1,4 pour l'application) ; `test/deliverables/image.sh` avec
+Podman rootless et Docker ; `quadlet -dryrun`, `compose config`, régénération de la configuration
+nginx. Le critère de sortie ci-dessous passe en CI, avec une réserve.
+
+Reste ouvert avant de clore M0 :
+- **Sécurité du dépôt GitHub** (case ci-dessus) : les workflows sont en place et verts ; restent les
+  réglages du dépôt à activer par le porteur (`docs/guide/securite-github.md`) et la première image
+  publiée sur ghcr.io, au premier tag de version (`release.yml`).
+- **Contexte SELinux sur Rocky** (critère de sortie) : la règle `httpd_sys_content_t` est enregistrée
+  par le paquet (`semanage fcontext`, vérifié en CI), mais son application aux fichiers ne se vérifie
+  pas dans un conteneur, où SELinux est désactivé. À constater sur un hôte Rocky réel, sinon à
+  déclarer irréalisable en CI par un ADR.
+- Les quadlets ne sont validés que par `quadlet -dryrun` (ce que demande le critère) ; leur démarrage
+  réel sous deux comptes n'a pas été essayé.
 
 Critère de sortie, en CI, pour chacun des trois livrables :
 - `.deb` (Debian 12 et 13) et `.rpm` (Rocky 9 et 10) dans un conteneur avec systemd : installation, puis
