@@ -1,13 +1,13 @@
 import { parseArgs } from 'node:util';
 import packageJson from '../../package.json' with { type: 'json' };
 import { LockmasterError } from '../domain/errors.js';
+import { EXIT } from '../system/exit-codes.js';
 import { configCheckCommand, configShowCommand } from './commands/config.js';
 import { healthcheckCommand } from './commands/healthcheck.js';
 import { initCommand } from './commands/init.js';
 import { keysGenMasterCommand } from './commands/keys.js';
 import { serveCommand } from './commands/serve.js';
 import type { CliRuntime, CommandContext } from './context.js';
-import { EXIT } from './exit-codes.js';
 
 export type { CliRuntime } from './context.js';
 
