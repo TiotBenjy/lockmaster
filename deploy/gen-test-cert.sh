@@ -17,7 +17,8 @@ if [ -e "$dir/repo.crt" ] || [ -e "$dir/repo.key" ]; then
   echo "gen-test-cert : $dir/repo.crt ou repo.key existe déjà, rien n'est remplacé" >&2
   exit 1
 fi
-mkdir -p "$dir"
+# 0755 explicite : traversable par nginx (UID 101) même sous un masque 077.
+[ -d "$dir" ] || mkdir -m 0755 "$dir"
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 30 \
   -subj "/CN=$name" -addext "subjectAltName=DNS:$name,DNS:localhost,IP:127.0.0.1" \
   -keyout "$dir/repo.key" -out "$dir/repo.crt" 2>/dev/null
