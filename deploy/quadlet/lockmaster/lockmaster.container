@@ -22,7 +22,8 @@ Volume=clamav-sock.volume:/run/clamav
 Volume=/run/lockmaster-sign:/run/lockmaster-sign
 # z : label SELinux partagé, sans quoi le conteneur ne lit pas un fichier du home (RHEL/Fedora).
 Volume=%h/lockmaster.toml:/etc/lockmaster/lockmaster.toml:ro,z
-Secret=lockmaster-master-key,type=mount,target=/run/secrets/master_key
+# Lisible par le seul UID de l'application (lockmaster refuse un secret plus ouvert).
+Secret=lockmaster-master-key,type=mount,target=/run/secrets/master_key,uid=10001,gid=10101,mode=0400
 Environment=LOCKMASTER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key
 Environment=LOCKMASTER__SIGNER__SOCKET=/run/lockmaster-sign/sign.sock
 ReadOnly=true

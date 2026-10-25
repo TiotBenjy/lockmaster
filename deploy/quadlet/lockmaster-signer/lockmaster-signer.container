@@ -13,7 +13,8 @@ UserNS=keep-id:uid=10002,gid=10100
 Network=none
 Volume=/run/lockmaster-sign:/run/lockmaster-sign
 Volume=lockmaster-signer-keys.volume:/var/lib/lockmaster-signer
-Secret=lockmaster-signer-master-key,type=mount,target=/run/secrets/master_key
+# Lisible par le seul UID du signataire (lockmaster refuse un secret plus ouvert).
+Secret=lockmaster-signer-master-key,type=mount,target=/run/secrets/master_key,uid=10002,gid=10100,mode=0400
 Environment=LOCKMASTER_SIGNER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key
 # Groupe du socket vide : celui du dossier setgid de l'hôte (keep-id ne transmet pas les noms de groupe).
 Environment=LOCKMASTER_SIGNER__SERVER__SOCKET_GROUP=

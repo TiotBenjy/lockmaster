@@ -153,6 +153,11 @@ Exigences `docs/11` : SEC-05 (`Origin`/`Label` uniques, `Valid-Until` 7 j), SEC-
 
 Exigences `docs/11` : **SEC-01** (ClamAV sur chaque flux interne décompressé ; test : paquet piégé par format et par compression détecté), **SEC-02** (règles d'intégrité de la flotte intégrées et non désactivables), SEC-14 (canari ClamAV périodique), SEC-15 (isolation de Grype), SEC-22 (quotas, files équitables), SEC-25.
 
+Reporté de M0 (revue de l'image) : service `clamav` de compose et des quadlets épinglé mais pas
+encore durci (`cap_drop`, `read_only`, `tmpfs`) ; à faire avec le client clamd, en vérifiant le chemin
+et les droits du socket. Quadlet `repo` : nginx tourne sous l'UID hôte du compte `lockmaster`
+(`keep-id:uid=101`) ; étudier un `UIDMap`/`GIDMap` qui ne projette que le groupe.
+
 - [ ] Machine à états + table de vérité testée ; jobs persistants (`jobs/`) avec reprise
 - [ ] Pool de `worker_threads` pour l'analyse des paquets (`resourceLimits`, échéance, recréation) ;
       test : bombe de décompression et paquet qui boucle -> worker terminé, paquet en `error`,
