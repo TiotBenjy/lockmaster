@@ -20,6 +20,8 @@ services:
     secrets: [signer_master_key]
     environment:
       LOCKMASTER_SIGNER__SECURITY__MASTER_KEY_FILE: /run/secrets/signer_master_key
+      # Groupe du socket par son numéro : l'image ne connaît pas le nom « lockmaster-sign ».
+      LOCKMASTER_SIGNER__SERVER__SOCKET_GROUP: "10100"
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]

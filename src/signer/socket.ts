@@ -8,7 +8,8 @@ import { assertUnixListener } from './activation.js';
 // Écoute sur un chemin (--socket, conteneurs). Garanties (ADR-0009, docs/02 §3.7 bis) :
 //  - le dossier du socket appartient à root ou au signataire et n'est modifiable ni par le groupe
 //    ni par « others » : l'application (membre du groupe) ne peut ni supprimer ni remplacer le socket ;
-//  - le socket naît en 0660 (masque), appartient au signataire, avec le groupe du dossier setgid ;
+//  - le socket naît en 0660 (masque), appartient au signataire, avec le groupe server.socket_group
+//    (vide : celui du dossier setgid) ;
 //  - un socket orphelin (arrêt brutal) est remplacé ; tout autre fichier à cet emplacement est refusé.
 
 const SOCKET_MODE = 0o660;
@@ -40,9 +41,10 @@ function removeOrphan(path: string): void {
 
 /**
  * Groupe que doit porter le socket : `server.socket_group` (nom ou numéro) ; s'il est vide, le
- * groupe du dossier quand il est setgid, sinon le groupe effectif du processus.
+ * groupe du dossier quand il est setgid, sinon le groupe effectif du processus. Le dossier n'est
+ * consulté (et lu s'il n'est pas fourni) que dans ce dernier cas.
  */
-export function expectedSocketGroup(socketGroup: string, dir: Stats, path: string): number {
+export function expectedSocketGroup(socketGroup: string, path: string, dir?: Stats): number {
   if (socketGroup !== '') {
     try {
       return resolveGroup(socketGroup);
@@ -50,7 +52,8 @@ export function expectedSocketGroup(socketGroup: string, dir: Stats, path: strin
       throw unsafe(path, `groupe « ${socketGroup} » introuvable`);
     }
   }
-  return (dir.mode & 0o2000) !== 0 ? dir.gid : (process.getegid?.() ?? -1);
+  const parent = dir ?? lstatSync(dirname(path));
+  return (parent.mode & 0o2000) !== 0 ? parent.gid : (process.getegid?.() ?? -1);
 }
 
 function verify(path: string, expectedGid: number): void {
@@ -79,7 +82,7 @@ async function closeAndThrow(server: Server, error: unknown): Promise<never> {
 
 export async function listenOnPath(server: Server, path: string, socketGroup: string): Promise<void> {
   const dir = checkDirectory(path);
-  const expectedGid = expectedSocketGroup(socketGroup, dir, path);
+  const expectedGid = expectedSocketGroup(socketGroup, path, dir);
   removeOrphan(path);
   // Le masque fixe les droits à la création : aucune fenêtre où le socket serait plus ouvert.
   const previous = process.umask(0o117);
