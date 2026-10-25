@@ -46,6 +46,7 @@ sudo -u lockmaster sh -c 'podman run --rm --network none ghcr.io/tiotbenjy/lockm
 # Initialisation (signataire d'abord), puis démarrage
 sudo -u lockmaster-signer podman run --rm --network none --userns keep-id \
   -v lockmaster-signer-keys:/var/lib/lockmaster-signer --secret lockmaster-signer-master-key,type=mount,target=/run/secrets/master_key \
+  -e LOCKMASTER_SIGNER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key \
   ghcr.io/tiotbenjy/lockmaster:1 signer init
 sudo -u lockmaster-signer XDG_RUNTIME_DIR=/run/user/$(id -u lockmaster-signer) systemctl --user daemon-reload
 sudo -u lockmaster-signer XDG_RUNTIME_DIR=/run/user/$(id -u lockmaster-signer) systemctl --user start lockmaster-signer
