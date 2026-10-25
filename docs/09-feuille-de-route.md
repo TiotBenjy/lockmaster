@@ -70,15 +70,18 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
 - [ ] `deploy/compose.yaml` (signer + lockmaster + clamav + repo), `deploy/quadlet/` ; CI GitHub Actions : check, test, build, package,
       image, test d'installation du .deb (Debian 12 et 13) et du .rpm (Rocky 9 et 10) qui vérifie `/healthz`
 
-État au 2026-10-25 : les cases restées vides exigent un passage de la CI, ou un réglage du dépôt GitHub
-(`docs/guide/securite-github.md`), qui n'a pas encore eu lieu : rien n'a été poussé. Ce qu'elles
+État au 2026-10-26 : les cases restées vides exigent un passage vert de la CI, ou un réglage du dépôt
+GitHub (`docs/guide/securite-github.md`). Le premier passage de la CI (après le push du 2026-10-25) a
+échoué à l'installation des dépendances (passage à pnpm 12, corrigé par ADR-0014). Ce qu'elles
 décrivent est en place et vérifié en local par les scripts que lance la CI : gardes, contrats,
 licences et `pnpm audit` ; `test/deliverables/packages.sh` et `repo-package.sh` sur Debian 12,
 Debian 13, Rocky 9 et Rocky 10 (dont `systemd-analyze verify` et `security` : 0,3 pour le
 signataire, 1,4 pour l'application) ; `test/deliverables/image.sh` avec Podman rootless et Docker ;
 `quadlet -dryrun`, `compose config`, régénération de la configuration nginx. Le critère de sortie
 ci-dessous passe de même en local. Limites connues : le contexte SELinux est enregistré
-(`semanage`) mais son application aux fichiers ne se vérifie pas dans un conteneur ; les quadlets ne
+(`semanage`) mais son application aux fichiers ne se vérifie pas dans un conteneur : à constater sur
+un hôte Rocky réel avant de cocher ce point du critère de sortie, sinon à déclarer irréalisable en CI
+par un ADR ; les quadlets ne
 sont validés que par `quadlet -dryrun` ; l'image n'est publiée sur ghcr.io qu'au premier tag de
 version (`release.yml`). À cocher après le premier passage vert de la CI.
 

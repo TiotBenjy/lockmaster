@@ -43,20 +43,34 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      # Mêmes gardes que la CI : une PR fusionnée malgré une CI rouge ne passe pas ici.
+      - name: Gardes (motifs, tests de sécurité, contrats, licences, vulnérabilités)
+        run: |
+          node scripts/check-forbidden.mjs
+          node scripts/check-test-guards.mjs --base="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+          node scripts/check-contracts.mjs
+          node scripts/check-licenses.mjs
+          pnpm audit --audit-level moderate
       - run: pnpm test
       - run: pnpm image
       - name: Image testée avant publication (procédure compose)
         run: |
           systemctl --user start podman.socket
           sh test/deliverables/image.sh podman
-      - name: Publication (version, et version majeure)
+      - name: Publication (version, et version majeure si c'est la plus récente)
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTOR: ${{ github.actor }}
+          TAG: ${{ github.ref_name }}
         run: |
           version=$(node -p "require('./package.json').version")
+          major=${version%%.*}
           image=ghcr.io/tiotbenjy/lockmaster
           printf '%s' "$TOKEN" | podman login ghcr.io --username "$ACTOR" --password-stdin
           podman push "$image:$version"
-          podman tag "$image:$version" "$image:${version%%.*}"
-          podman push "$image:${version%%.*}"
+          # Le tag majeur (image par défaut de compose) ne recule jamais vers une version plus ancienne.
+          latest=$(git tag -l "v$major.*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          if [ "$latest" = "$TAG" ]; then
+            podman tag "$image:$version" "$image:$major"
+            podman push "$image:$major"
+          fi
