@@ -1,7 +1,7 @@
 # Compte lockmaster : ClamAV, joignable uniquement par l'application (réseau interne + socket Unix).
 [Container]
 ContainerName=clamav
-Image=docker.io/clamav/clamav:1.4
+Image=docker.io/clamav/clamav@sha256:3bba6dd5ac6663d55b80f86a3126e146612d93b593cc2617188d13f637d91260
 Network=lockmaster.network
 Volume=clamav-db.volume:/var/lib/clamav
 Volume=clamav-sock.volume:/run/clamav

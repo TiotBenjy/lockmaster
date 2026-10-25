@@ -94,12 +94,13 @@ describe('scripts de maintenance', () => {
   });
 });
 
-describe('package.sh', () => {
-  it('ne télécharge rien sans vérification SHA-256 (fetch_verified de lib.sh)', () => {
-    const text = read('packaging/package.sh');
-    expect(text).not.toMatch(/\b(curl|wget)\b/);
-    expect(text).toMatch(/node_tarball/);
-    expect(text).toMatch(/grype_tarball/);
-    expect(text).toMatch(/nfpm_tarball/);
+describe('package.sh et stage.sh', () => {
+  it('ne téléchargent rien sans vérification SHA-256 (fetch_verified de lib.sh)', () => {
+    const stage = read('packaging/stage.sh');
+    const pack = read('packaging/package.sh');
+    for (const text of [stage, pack]) expect(text).not.toMatch(/\b(curl|wget)\b/);
+    expect(stage).toMatch(/node_tarball/);
+    expect(stage).toMatch(/grype_tarball/);
+    expect(pack).toMatch(/nfpm_tarball/);
   });
 });

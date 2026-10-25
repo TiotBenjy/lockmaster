@@ -44,7 +44,7 @@ sudo install -o lockmaster -m 0644 lockmaster/* ~lockmaster/.config/containers/s
 sudo -u lockmaster sh -c 'podman run --rm --network none ghcr.io/tiotbenjy/lockmaster:1 keys gen-master | podman secret create lockmaster-master-key -'
 
 # Initialisation (signataire d'abord), puis démarrage
-sudo -u lockmaster-signer podman run --rm --network none --userns keep-id \
+sudo -u lockmaster-signer podman run --rm --network none --userns keep-id:uid=10002,gid=10100 \
   -v lockmaster-signer-keys:/var/lib/lockmaster-signer --secret lockmaster-signer-master-key,type=mount,target=/run/secrets/master_key \
   -e LOCKMASTER_SIGNER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key \
   ghcr.io/tiotbenjy/lockmaster:1 signer init
@@ -64,5 +64,6 @@ sudo -u lockmaster XDG_RUNTIME_DIR=/run/user/$(id -u lockmaster) systemctl --use
 | Socket `/run/lockmaster-sign/sign.sock` | se connecte (groupe `lockmaster-sign`) | l'écoute |
 | Évasion de son conteneur | donne le compte hôte `lockmaster`, qui ne peut pas lire les fichiers ni le stockage Podman de `lockmaster-signer` | - |
 
-Le port 443 n'est pas accessible à un compte non privilégié : `repo.container` publie 8443/8080 ;
+Le port 443 n'est pas accessible à un compte non privilégié : `repo.container` publie 8443/8081
+(8080 est pris par l'application sur 127.0.0.1) ;
 rediriger 443 -> 8443 au pare-feu, ou abaisser `net.ipv4.ip_unprivileged_port_start`.
