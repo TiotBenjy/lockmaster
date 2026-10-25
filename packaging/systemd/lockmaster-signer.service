@@ -1,0 +1,55 @@
+[Unit]
+Description=lockmaster - service de signature (seul détenteur des clés)
+Documentation=file:///usr/share/doc/lockmaster/adr/0009-processus-signataire-separe.md
+Requires=lockmaster-signer.socket
+After=lockmaster-signer.socket
+
+[Service]
+Type=exec
+User=lockmaster-signer
+Group=lockmaster-signer
+# Reçoit le socket de systemd (SD_LISTEN_FDS, descripteur 3).
+ExecStart=/usr/bin/lockmaster signer serve --config /etc/lockmaster-signer/signer.toml --socket-activation
+Restart=on-failure
+RestartSec=5s
+# 78 = configuration invalide ou signataire non initialisé : inutile de redémarrer en boucle.
+RestartPreventExitStatus=78
+
+StateDirectory=lockmaster-signer
+StateDirectoryMode=0700
+UMask=0077
+
+# Aucun réseau : uniquement le socket Unix transmis par systemd.
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+# Le JIT de V8 exige des pages écriture+exécution.
+MemoryDenyWriteExecute=no
+
+[Install]
+Also=lockmaster-signer.socket

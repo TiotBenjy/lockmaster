@@ -1,0 +1,45 @@
+# Mises à jour automatiques proposées en PR (jamais fusionnées sans revue ni CI verte).
+# « cooldown » aligne Dependabot sur minimumReleaseAge de pnpm : une version trop récente n'est pas proposée.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    labels: ["dépendances"]
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      dev:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-correctifs:
+        dependency-type: "production"
+        update-types: ["patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 7
+    labels: ["dépendances", "ci"]
+    commit-message:
+      prefix: "ci(deps)"
+
+  - package-ecosystem: "docker"
+    directory: "/packaging"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Europe/Paris"
+    labels: ["dépendances", "livraison"]
+    commit-message:
+      prefix: "build(image)"

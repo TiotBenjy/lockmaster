@@ -1,0 +1,26 @@
+# Dépendances et sorties de build
+node_modules/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+
+# Données locales de développement (base, blobs, clés générées)
+.data/
+
+# Secrets : ne jamais committer
+.env
+.env.*
+secrets/
+*.key
+*.pem
+deploy/lockmaster.toml
+
+
+# Divers
+.DS_Store
+*.log
+
+
+# Python (outil de recherche du skill UI)
+__pycache__/
