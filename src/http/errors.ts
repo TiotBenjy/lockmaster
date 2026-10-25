@@ -34,10 +34,10 @@ export function registerErrorHandlers(app: FastifyInstance): void {
   app.setErrorHandler((error: FastifyError, request, reply) => {
     const status = error.statusCode ?? 500;
     if (status >= 400 && status < 500) {
-      request.log.info({ event: 'http.client_error', status, code: error.code }, 'requête refusée');
+      request.log.info({ event: 'http.client_error', status, code: error.code }, 'request rejected');
       return sendError(reply, request, status);
     }
-    request.log.error({ event: 'http.error', status, err: error }, 'erreur interne');
+    request.log.error({ event: 'http.error', status, err: error }, 'internal error');
     return sendError(reply, request, 500);
   });
 }
