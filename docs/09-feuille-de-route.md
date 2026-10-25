@@ -22,8 +22,8 @@ Exigences `docs/11` : SEC-14 (réseaux compose, clamd par socket), SEC-24 (bette
 But : un `lockmaster serve` qui répond, empaqueté dans les trois formats dès le premier jour, et le
 serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable à vide.
 
-- [x] `package.json` (pnpm 10, `"type": "module"`, `engines.node: ">=24"`, `"license": "MIT"`), `pnpm-workspace.yaml`
-      avec `onlyBuiltDependencies: [better-sqlite3, esbuild]` et `minimumReleaseAge`
+- [x] `package.json` (pnpm 12, ADR-0014, `"type": "module"`, `engines.node: ">=24"`, `"license": "MIT"`), `pnpm-workspace.yaml`
+      avec `allowBuilds` (better-sqlite3, esbuild) et `minimumReleaseAge`
 - [x] `tsconfig.json` strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
       `jsx: react-jsx`, `jsxImportSource: preact`), `biome.json`, `vitest.config.ts`
 - [x] `src/config/` : `--config` > `LOCKMASTER_CONFIG` > `/etc/lockmaster/lockmaster.toml` ; smol-toml + schéma zod

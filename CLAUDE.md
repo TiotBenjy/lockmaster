@@ -44,7 +44,7 @@ Lis le document du domaine **avant** de modifier ce domaine. Si une décision ch
 Node.js 24 LTS · TypeScript strict (ESM) · Fastify 5 · zod · SQLite (`better-sqlite3`) + Kysely ·
 Preact + `preact-render-to-string` (TSX côté serveur) + htmx + Alpine.js (build CSP) · OpenPGP.js · `node:crypto` ·
 `node:zlib` (gzip/zstd) · `tar-stream` · `openid-client` · `croner` · pino.
-Tests : vitest, fast-check, testcontainers. Lint/format : Biome. Paquets : pnpm 10.
+Tests : vitest, fast-check, testcontainers. Lint/format : Biome. Paquets : pnpm 12 (ADR-0014).
 Livraison : `.deb`/`.rpm` via nfpm, image OCI (Docker et Podman) pour l'application ; paquet
 `lockmaster-repo` (.deb/.rpm sans code : config nginx, répertoires, compte rsync restreint) et image
 nginx officielle non-root pour le serveur de dépôt. Scanners : clamd + Grype.
@@ -62,7 +62,7 @@ licences non libres. MPL-2.0 toléré en développement seulement (`axe-core`). 
 CI (`scripts/check-licenses.mjs`, M0) vérifie les licences de l'arbre de production.
 Préférer `node:*`. Interdits : `request`, `axios` (utiliser `fetch`), `lodash`, `moment`,
 ORM à entités, frameworks UI côté client, tout paquet avec script `postinstall` hors liste
-blanche `onlyBuiltDependencies` de `pnpm-workspace.yaml` (seuls `better-sqlite3` et `esbuild`
+blanche `allowBuilds` de `pnpm-workspace.yaml` (seuls `better-sqlite3` et `esbuild`
 y figurent).
 
 Bibliothèques déjà choisies (ne pas en ajouter d'équivalentes) : `fastify`, `@fastify/helmet`,
