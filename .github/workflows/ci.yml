@@ -35,6 +35,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
       - name: pnpm (version et empreinte de packageManager)
         run: corepack enable
       - run: pnpm install --frozen-lockfile
@@ -43,8 +44,14 @@ jobs:
         run: node scripts/check-forbidden.mjs
       - name: Garde-fous des tests (SEC-19)
         env:
+          # PR : la branche cible ; push : le commit précédent (absent pour une nouvelle branche).
           BASE_REF: ${{ github.base_ref }}
-        run: node scripts/check-test-guards.mjs ${BASE_REF:+--base=origin/$BASE_REF}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          base=
+          if [ -n "$BASE_REF" ]; then base="origin/$BASE_REF"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then base="$BEFORE"; fi
+          node scripts/check-test-guards.mjs ${base:+--base=$base}
       - name: Suites de conformité des interfaces
         run: node scripts/check-contracts.mjs
       - name: Licences de l'arbre de production
@@ -86,6 +93,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - name: Paquets .deb et .rpm (better-sqlite3 compilé depuis les sources)
@@ -145,6 +153,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: livrables
