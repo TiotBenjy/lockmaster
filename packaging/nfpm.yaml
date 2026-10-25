@@ -2,7 +2,7 @@
 # ce script prépare out/stage/ (bundles, Node.js et Grype vérifiés par SHA-256, lanceur) et fixe
 # LOCKMASTER_VERSION et LOCKMASTER_ARCH (amd64 ou arm64, traduits par nfpm pour le .rpm).
 # Arborescence : /usr/lib/lockmaster/{node/bin/node, bin/lockmaster, bin/grype, lockmaster.mjs,
-# lockmaster-signer.mjs, node_modules/better-sqlite3, static}, même disposition que /app dans l'image.
+# lockmaster-signer.mjs, node_modules/better-sqlite3, static}, même disposition que /app dans l'image (ADR-0013).
 name: lockmaster
 arch: ${LOCKMASTER_ARCH}
 platform: linux
