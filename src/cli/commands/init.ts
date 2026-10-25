@@ -1,4 +1,5 @@
-import { existsSync, lstatSync, mkdirSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, type Stats } from 'node:fs';
+import { dirname } from 'node:path';
 import { isInsideReally } from '../../config/real-path.js';
 import type { Config } from '../../config/schema.js';
 import { readSecretFile, type SecretFileOptions } from '../../config/secret-file.js';
@@ -65,10 +66,39 @@ function ensureMasterKey(config: Config, root: RootMode | undefined): string {
   return `clé maîtresse créée : ${path}`;
 }
 
+/**
+ * En root, chaque dossier parent de data_dir doit être sûr (à la manière d'OpenSSH) : vrai dossier,
+ * appartenant à root, non modifiable par le groupe ni par « others » (sauf dossier à sticky bit).
+ * Sinon le compte du service pourrait orienter la création faite par root.
+ */
+function checkAncestors(dir: string, root: RootMode): void {
+  const rootUids = [0, root.privileges.superuser.uid];
+  for (let current = dirname(dir); ; current = dirname(current)) {
+    let stat: Stats;
+    try {
+      stat = lstatSync(current);
+    } catch {
+      throw unsafe(current, "dossier parent absent (aucun dossier intermédiaire n'est créé en root)");
+    }
+    if (!stat.isDirectory()) throw unsafe(current, 'dossier parent qui est un lien ou un fichier');
+    if (!rootUids.includes(stat.uid)) throw unsafe(current, `dossier parent appartenant à ${stat.uid} et non à root`);
+    if ((stat.mode & 0o022) !== 0 && (stat.mode & 0o1000) === 0) {
+      throw unsafe(current, 'dossier parent modifiable par le groupe ou par « others »');
+    }
+    if (current === dirname(current)) return;
+  }
+}
+
 function ensureDataDir(dir: string, root: RootMode | undefined): void {
+  if (root) checkAncestors(dir, root);
   if (!existsSync(dir) && !isLink(dir)) {
-    mkdirSync(dir, { recursive: true, mode: 0o750 });
-    if (root) root.privileges.chown(dir, root.service);
+    if (root) {
+      // Dernier segment seulement, propriétaire posé sur le dossier ouvert sans suivre de lien.
+      mkdirSync(dir, { mode: 0o750 });
+      root.privileges.chownDirectory(dir, root.service);
+    } else {
+      mkdirSync(dir, { recursive: true, mode: 0o750 });
+    }
     return;
   }
   const stat = lstatSync(dir);
