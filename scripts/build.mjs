@@ -4,10 +4,11 @@
 //  - dist/lockmaster-signer.mjs  : service de signature (src/signer/main.ts), bundle DISTINCT : aucun
 //                                  code du signataire dans l'application, et inversement (ADR-0009) ;
 //  - dist/node_modules/better-sqlite3 : seul module externe (natif), avec le binaire fourni par
-//                                  --native (compilé depuis les sources, packaging/build-native.sh) ou,
-//                                  à défaut, celui de node_modules (développement, tests) ;
+//                                  --native (compilé depuis les sources, packaging/build-native.sh),
+//                                  obligatoire avec --out ; sinon celui de node_modules (dist/ local,
+//                                  ou --dev pour les tests) ;
 //  - dist/static, dist/LICENSE, dist/THIRD-PARTY-LICENSES.txt.
-// Usage : node scripts/build.mjs [--out=dist] [--native=chemin/better_sqlite3.node]
+// Usage : node scripts/build.mjs [--out=dossier --native=chemin/better_sqlite3.node | --dev]
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { arch } from 'node:os';
@@ -16,7 +17,9 @@ import { parseArgs } from 'node:util';
 import { build } from 'esbuild';
 
 const root = resolve(import.meta.dirname, '..');
-const { values } = parseArgs({ options: { out: { type: 'string' }, native: { type: 'string' } } });
+const { values } = parseArgs({
+  options: { out: { type: 'string' }, native: { type: 'string' }, dev: { type: 'boolean' } },
+});
 const out = resolve(root, values.out ?? 'dist');
 
 // Les dépendances CommonJS (fastify, pino...) appellent require() : on le fournit au bundle ESM.
@@ -40,6 +43,9 @@ async function bundle(entry, file) {
 
 function nativeBinary() {
   if (values.native) return resolve(values.native);
+  // Livraison (--out) : binaire compilé depuis les sources obligatoire (SEC-24). node_modules peut
+  // contenir un binaire précompilé téléchargé hors lockfile : réservé au dist/ local et à --dev.
+  if (values.out && !values.dev) throw new Error('--native obligatoire avec --out (--dev pour un essai local)');
   const pkg = join(root, 'node_modules/better-sqlite3');
   const built = join(pkg, 'build/Release/better_sqlite3.node');
   if (existsSync(built)) return built;
@@ -48,13 +54,13 @@ function nativeBinary() {
   throw new Error('module natif de better-sqlite3 introuvable : utiliser --native');
 }
 
-function copySqlite() {
+function copySqlite(native) {
   const source = join(root, 'node_modules/better-sqlite3');
   const target = join(out, 'node_modules/better-sqlite3');
   mkdirSync(join(target, 'build/Release'), { recursive: true });
   cpSync(join(source, 'lib'), join(target, 'lib'), { recursive: true });
   for (const file of ['package.json', 'LICENSE']) cpSync(join(source, file), join(target, file));
-  cpSync(nativeBinary(), join(target, 'build/Release/better_sqlite3.node'));
+  cpSync(native, join(target, 'build/Release/better_sqlite3.node'));
 }
 
 function thirdPartyLicenses() {
@@ -76,11 +82,12 @@ function thirdPartyLicenses() {
   return `Licences des dépendances de production de lockmaster\n${'='.repeat(52)}\n\n${sections.join(`\n${'-'.repeat(72)}\n\n`)}`;
 }
 
+const native = nativeBinary();
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await bundle('src/main.ts', 'lockmaster.mjs');
 await bundle('src/signer/main.ts', 'lockmaster-signer.mjs');
-copySqlite();
+copySqlite(native);
 if (existsSync(join(root, 'src/web/static')))
   cpSync(join(root, 'src/web/static'), join(out, 'static'), { recursive: true });
 cpSync(join(root, 'LICENSE'), join(out, 'LICENSE'));
