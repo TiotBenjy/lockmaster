@@ -4,7 +4,7 @@ import { LockmasterError } from '../domain/errors.js';
 // Lecture des fichiers secrets (*_file, clé maîtresse) : docs/02 §3.3, deploy/lockmaster.example.toml.
 // Refus si le fichier est accessible à « others », modifiable par le groupe, lisible par un groupe
 // autre que le groupe principal du service, ou s'il n'appartient ni à root ni au compte courant
-// (référence : root:lockmaster 0440). Les contrôles portent sur le descripteur ouvert (fstat), donc
+// (paquets : credential systemd ; conteneurs : secret monté). Les contrôles portent sur le descripteur ouvert (fstat), donc
 // sur la cible d'un éventuel lien.
 
 export interface SecretFileOptions {

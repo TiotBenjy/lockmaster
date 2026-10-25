@@ -43,7 +43,8 @@ request_timeout  = "15m"          # uploads longs compris
 [security]
 # 32 octets aléatoires (base64). Chiffre au repos les clés de signature et les secrets en base.
 # Créée par `lockmaster init` (ou `lockmaster keys gen-master --out <fichier>`).
-# Propriétaire root:lockmaster, mode 0440 (paquets) ; en conteneur : secret monté lisible par l'UID 10001.
+# Paquets : root:root 0400, transmise par systemd (LoadCredential=, le service la lit dans son dossier de
+# credentials) ; en conteneur : secret monté lisible par l'UID 10001.
 # Ne JAMAIS la placer dans data_dir ni dans les sauvegardes.
 master_key_file = "/etc/lockmaster/master.key"
 session_idle_timeout  = "30m"
