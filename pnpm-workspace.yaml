@@ -3,13 +3,15 @@
 #  - seuls ces paquets peuvent exécuter un script d'installation ; tout autre script est refusé et
 #    fait échouer l'installation (ERR_PNPM_IGNORED_BUILDS). « onlyBuiltDependencies » de pnpm 10 est
 #    ignoré sans avertissement depuis pnpm 11 : ne pas le réintroduire ;
-#  - une version publiée depuis moins de 7 jours (10 080 minutes) n'est pas installée (strict : une
-#    valeur explicite rend minimumReleaseAgeStrict vrai).
+#  - une version publiée depuis moins de 7 jours (10 080 minutes) n'est pas installée ; strict : elle
+#    est refusée, jamais ajoutée d'office aux exceptions.
+# Liste fermée de réglages : toute nouvelle clé doit passer par le test SEC-24.
 allowBuilds:
   better-sqlite3: true
   esbuild: true
 
 minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
 
 # Exception au délai de 7 jours, réservée aux correctifs de sécurité : versions EXACTES, avec la
 # référence de l'avis et la date à laquelle l'exception devient inutile (à retirer ensuite).
