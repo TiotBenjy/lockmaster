@@ -38,8 +38,9 @@ module.exports = {
     {
       name: 'only-signer-imports-signer',
       severity: 'error',
-      comment: "ADR-0009 : l'application passe par src/signer-client/, jamais par src/signer/.",
-      from: { path: '^src/', pathNot: '^src/(signer/|main\\.ts$|cli/signer)' },
+      comment:
+        "ADR-0009 : l'application passe par src/signer-client/, jamais par src/signer/ (point d'entrée et bundle distincts).",
+      from: { path: '^src/', pathNot: '^src/signer/' },
       to: { path: '^src/signer/' },
     },
     {

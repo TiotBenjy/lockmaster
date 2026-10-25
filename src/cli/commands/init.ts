@@ -6,9 +6,9 @@ import { readSecretFile, type SecretFileOptions } from '../../config/secret-file
 import { generateMasterKeyText, parseMasterKey } from '../../crypto/master-key.js';
 import { databasePath, markInitialized, openDatabase } from '../../db/connection.js';
 import { LockmasterError } from '../../domain/errors.js';
+import { writeNewFile } from '../../system/files.js';
 import { type SystemAccounts, systemAccounts } from '../accounts.js';
 import { type CommandContext, loadContextConfig } from '../context.js';
-import { writeNewFile } from '../files.js';
 import { type Identity, type Privileges, processPrivileges } from '../privileges.js';
 
 // `lockmaster init` (version M0) : clé maîtresse de l'application et base initialisée. Idempotent :
