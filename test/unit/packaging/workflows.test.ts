@@ -12,15 +12,15 @@ const workflows = readdirSync(DIR)
   .map((file) => ({ file, text: readFileSync(join(DIR, file), 'utf8') }));
 const count = (text: string, pattern: RegExp) => (text.match(pattern) ?? []).length;
 
-/** Contenu des étapes `run:` (une ligne, ou bloc `|` indenté sous la clé). */
+/** Contenu des étapes `run:` (une ligne, ou bloc `|`, `|-`, `>`, `>-`... indenté sous la clé). */
 function runBlocks(text: string): string[] {
   const lines = text.split('\n');
   const blocks: string[] = [];
   for (const [index, line] of lines.entries()) {
-    const match = /^(\s*)(?:- )?run: ?(.*)$/.exec(line);
+    const match = /^\s*(?:- )?run: ?(.*)$/.exec(line);
     if (!match) continue;
-    if (match[2] !== '|') {
-      blocks.push(match[2] ?? '');
+    if (!/^[|>][-+]?$/.test(match[1] ?? '')) {
+      blocks.push(match[1] ?? '');
       continue;
     }
     // Le bloc s'arrête à la première ligne non vide qui n'est pas plus indentée que la clé run:.
@@ -53,9 +53,19 @@ describe('workflows GitHub (SEC-24)', () => {
   it('les étapes run sont bien lues (sinon le contrôle précédent passerait à vide)', () => {
     const ci = workflows.find(({ file }) => file === 'ci.yml')?.text ?? '';
     expect(runBlocks(ci).join('\n')).toContain('node scripts/check-test-guards.mjs');
-    expect(runBlocks('    steps:\n      - run: |\n          echo "$' + '{{ github.head_ref }}"\n')[0]).toContain(
-      '$' + '{{',
-    );
+    for (const style of ['|', '|-', '>', '>-']) {
+      const expression = '$' + '{{ github.head_ref }}';
+      const step = `    steps:\n      - run: ${style}\n          echo "${expression}"\n`;
+      expect(runBlocks(step)[0], style).toContain('$' + '{{');
+    }
+  });
+
+  // Droits en écriture permis, par workflow ; tout autre (ou write-all) est refusé.
+  const WRITES: Record<string, string[]> = { 'codeql.yml': ['security-events'], 'release.yml': ['packages'] };
+  it.each(workflows)('$file : droits en écriture limités à la liste blanche', ({ file, text }) => {
+    expect(text).not.toMatch(/write-all/);
+    const writes = [...text.matchAll(/^\s+([a-z-]+): write$/gm)].map(([, scope]) => scope);
+    expect([...new Set(writes)].sort()).toEqual(WRITES[file] ?? []);
   });
 
   it.each(workflows)('$file : checkout sans jeton persistant, aucun cache', ({ text }) => {
@@ -78,5 +88,23 @@ describe('workflows GitHub (SEC-24)', () => {
     expect(release).toContain("grep -Eq '^v[0-9]+\\.[0-9]+\\.[0-9]+$'");
     expect(release).toContain('git merge-base --is-ancestor "$GITHUB_SHA" origin/main');
     expect(release).toContain('sh test/deliverables/image.sh podman');
+  });
+
+  it('release.yml repasse toutes les gardes de la CI avant de construire l image', () => {
+    const release = workflows.find(({ file }) => file === 'release.yml')?.text ?? '';
+    const image = release.indexOf('- run: pnpm image');
+    expect(image).toBeGreaterThan(0);
+    for (const guard of [
+      'node scripts/check-forbidden.mjs',
+      'node scripts/check-test-guards.mjs --base=',
+      'node scripts/check-contracts.mjs',
+      'node scripts/check-licenses.mjs',
+      'pnpm audit --audit-level moderate',
+      '- run: pnpm test',
+    ]) {
+      const position = release.indexOf(guard);
+      expect(position, guard).toBeGreaterThan(0);
+      expect(position, guard).toBeLessThan(image);
+    }
   });
 });

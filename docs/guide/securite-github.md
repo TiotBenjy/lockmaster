@@ -45,19 +45,24 @@ selon l'interface de GitHub ; les réglages, eux, sont stables.
 ## 5. Protection des branches `main` et `dev`
 
 GitHub interdit à l'auteur d'une PR de l'approuver. Avec un seul propriétaire, une règle qui exige
-une approbation sans exception bloquerait toutes ses PR : elle finirait désactivée. Règle (ruleset)
-tenable, sur `main` **et** `dev` :
-- PR obligatoire pour toute modification, y compris pour le propriétaire ;
-- une approbation et la **revue des propriétaires du code** (`.github/CODEOWNERS` : TiotBenjy)
-  obligatoires pour tous les autres auteurs (Dependabot, contributeurs) ; approbations annulées à
-  chaque nouveau commit ;
-- le propriétaire dans la liste de contournement, en mode **« pull requests seulement »** : il fusionne
-  ses propres PR sans approbation, mais jamais par un `push` direct, et les vérifications restent
-  obligatoires pour lui ;
-- vérifications obligatoires : les jobs de `CI` (« Vérifications et tests », « Configurations de
-  déploiement », « Paquets et image », les tests de livrables), « CodeQL » et « Revue des
-  dépendances » ; branche à jour avant fusion ;
-- pas de `force push`, pas de suppression.
+une approbation sans exception bloquerait toutes ses PR : elle finirait désactivée. Or un acteur de la
+liste de contournement d'un ruleset contourne **toutes** les règles de ce ruleset, vérifications
+comprises. D'où deux rulesets, chacun sur `main` **et** `dev` :
+
+1. **« Revue »** :
+   - PR obligatoire pour toute modification ;
+   - une approbation et la **revue des propriétaires du code** (`.github/CODEOWNERS` : TiotBenjy) ;
+     approbations annulées à chaque nouveau commit ;
+   - liste de contournement : le propriétaire, en mode **« pull requests seulement »** (il fusionne
+     ses propres PR sans approbation, jamais par un `push` direct).
+2. **« Intégrité »**, **sans aucun contournement** :
+   - vérifications obligatoires : les jobs de `CI` (« Vérifications et tests », « Configurations de
+     déploiement », « Paquets et image », les tests de livrables), « CodeQL » et « Revue des
+     dépendances » ; branche à jour avant fusion ;
+   - pas de `force push`, pas de suppression.
+
+Une PR rouge ne peut donc être fusionnée par personne. `release.yml` repasse de plus toutes les
+gardes de la CI avant de publier.
 
 Risque résiduel, assumé tant que le projet n'a qu'un mainteneur : une seule personne relit le code
 du propriétaire. Les tests de sécurité (`test/security/`, dont le nombre ne peut pas baisser) et la
