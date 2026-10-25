@@ -40,6 +40,11 @@ describe('keyGroups', () => {
     expect(keyGroups(config('', mode))).not.toContain(ownGid);
   });
 
+  it('socket_group renseigné : le dossier du socket ne joue aucun rôle', () => {
+    const otherGid = ownGid === 99_999 ? 99_998 : 99_999;
+    expect(keyGroups(config(String(otherGid), 'absent'))).toContain(ownGid);
+  });
+
   it("n'admet que root si le groupe ou le dossier est introuvable", () => {
     expect(keyGroups(config('', 'absent'))).toEqual([0]);
     expect(keyGroups(config('groupe-inexistant-lockmaster', 0o750))).toEqual([0]);

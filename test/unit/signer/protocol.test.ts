@@ -37,6 +37,22 @@ describe('trames du protocole du signataire (ADR-0009)', () => {
     expect(codeOf(() => new FrameReader().push(header))).toBe('SIGNER_FRAME_TOO_LARGE');
   });
 
+  it('applique la limite configurée (server.max_message_bytes)', () => {
+    const header = (length: number) => {
+      const buffer = Buffer.alloc(4);
+      buffer.writeUInt32BE(length);
+      return buffer;
+    };
+    expect(codeOf(() => new FrameReader(1024).push(header(1025)))).toBe('SIGNER_FRAME_TOO_LARGE');
+    expect(new FrameReader(1024).push(header(1024))).toBeUndefined();
+  });
+
+  it('plafonne une limite configurée au-delà de 16 Mio', () => {
+    const header = Buffer.alloc(4);
+    header.writeUInt32BE(MAX_FRAME_BYTES + 1);
+    expect(codeOf(() => new FrameReader(2 * MAX_FRAME_BYTES).push(header))).toBe('SIGNER_FRAME_TOO_LARGE');
+  });
+
   it('refuse des octets après la trame (une requête par connexion)', () => {
     const frame = Buffer.concat([encodeFrame({ op: 'ping' }), Buffer.from('x')]);
     expect(codeOf(() => new FrameReader().push(frame))).toBe('SIGNER_FRAME_INVALID');

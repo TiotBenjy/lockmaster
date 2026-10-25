@@ -14,6 +14,8 @@ Volume=/run/lockmaster-sign:/run/lockmaster-sign
 Volume=lockmaster-signer-keys.volume:/var/lib/lockmaster-signer
 Secret=lockmaster-signer-master-key,type=mount,target=/run/secrets/master_key
 Environment=LOCKMASTER_SIGNER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key
+# Groupe du socket vide : celui du dossier setgid de l'hôte (keep-id ne transmet pas les noms de groupe).
+Environment=LOCKMASTER_SIGNER__SERVER__SOCKET_GROUP=
 ReadOnly=true
 Tmpfs=/tmp
 DropCapability=ALL

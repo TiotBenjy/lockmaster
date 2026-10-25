@@ -1,6 +1,5 @@
-import { existsSync, lstatSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { createServer, type Socket } from 'node:net';
-import { dirname } from 'node:path';
 import type { DestinationStream } from 'pino';
 import { defaultAllowedGids, readSecretFile } from '../config/secret-file.js';
 import { parseMasterKey } from '../crypto/master-key.js';
@@ -43,8 +42,7 @@ export function keyGroups(config: SignerConfig): number[] {
   let socketGroup: number;
   try {
     // Même règle que la vérification du socket (src/signer/socket.ts).
-    const socket = config.server.socket;
-    socketGroup = expectedSocketGroup(config.server.socket_group, lstatSync(dirname(socket)), socket);
+    socketGroup = expectedSocketGroup(config.server.socket_group, config.server.socket);
   } catch {
     return [0];
   }
