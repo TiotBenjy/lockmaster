@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import type { FastifyInstance } from 'fastify';
 import { createDeps } from '../../app.js';
 import type { Config } from '../../config/schema.js';
 import { readSecretFile } from '../../config/secret-file.js';
@@ -38,6 +39,22 @@ export function preflight(config: Config): Db {
   return db;
 }
 
+/**
+ * Écoute sur le serveur HTTP sous-jacent plutôt que par `app.listen()` : sur 0.0.0.0, Fastify
+ * énumère les interfaces réseau (netlink) pour journaliser ses adresses, ce que lockmaster.service
+ * interdit (RestrictAddressFamilies) et qui arrêterait le processus. `app.close()` ferme ce serveur.
+ */
+async function listen(app: FastifyInstance, address: Config['http']['listen']): Promise<void> {
+  await app.ready();
+  await new Promise<void>((resolve, reject) => {
+    app.server.once('error', reject);
+    app.server.listen({ host: address.host, port: address.port }, () => {
+      app.server.off('error', reject);
+      resolve();
+    });
+  });
+}
+
 export interface RunningServer {
   logger: Logger;
   stop(): Promise<void>;
@@ -50,12 +67,15 @@ export async function startServer(config: Config): Promise<RunningServer> {
   monitor.start();
   try {
     const app = await buildServer(deps, { readinessChecks: [() => monitor.healthy(), () => ping(db)] });
-    await app.listen({ host: config.http.listen.host, port: config.http.listen.port });
+    await listen(app, config.http.listen);
     deps.logger.info({ event: 'server.listening', ...config.http.listen }, 'lockmaster listening');
     return {
       logger: deps.logger,
       stop: async () => {
-        await app.close();
+        const closing = app.close();
+        // Hors app.listen(), Fastify ne ferme pas lui-même les connexions keep-alive inactives.
+        app.server.closeIdleConnections();
+        await closing;
         monitor.stop();
         db.close();
       },
