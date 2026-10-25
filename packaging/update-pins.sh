@@ -18,7 +18,11 @@ IMAGES="ALMALINUX_9=docker.io/library/almalinux:9
 DEBIAN_SLIM=docker.io/library/debian:13-slim
 NGINX_UNPRIVILEGED=docker.io/nginxinc/nginx-unprivileged:1.28-alpine
 CLAMAV=docker.io/clamav/clamav:1.4
-NODE_BUILDER=docker.io/library/node:24-bookworm"
+NODE_BUILDER=docker.io/library/node:24-bookworm
+DEBIAN_12=docker.io/library/debian:12
+DEBIAN_13=docker.io/library/debian:13
+ROCKY_9=docker.io/rockylinux/rockylinux:9
+ROCKY_10=docker.io/rockylinux/rockylinux:10"
 
 here=$(cd "$(dirname "$0")" && pwd)
 out="$here/versions.env"

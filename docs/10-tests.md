@@ -31,7 +31,7 @@ Conséquences pratiques :
 | Intégration | vitest + `fastify.inject` + SQLite temporaire | routes HTTP, authz, pipeline avec scanners factices, publication | `pnpm test` |
 | Scanners réels | testcontainers (`clamav/clamav`) + binaire grype | client clamd (EICAR), parsing de sortie grype | `pnpm test:e2e` |
 | Bout en bout | testcontainers : Lockmaster + conteneur nginx `repo` (config `deploy/nginx/lockmaster-repo.conf`, volume partagé en lecture seule) + clients `debian:12`, `debian:13`, `rockylinux:9`, `rockylinux/rockylinux:10`, `alpine:3.20` + dernière Alpine stable | upload -> scan -> publication -> `apt install` / `dnf install` / `apk add` **via nginx** (les clients ne joignent jamais l'app) ; dépôt privé (401 sans identifiants) ; rotation de clé ; rollback ; import amont ; cible rsync (sshd + rrsync) | `pnpm test:e2e`, CI |
-| Livrables | CI | installation du `.deb` (Debian 12/13) et du `.rpm` (Rocky 9/10) dans des conteneurs systemd ; image sous Docker et Podman rootless | CI sur tag + nocturne |
+| Livrables | CI | installation du `.deb` (Debian 12/13) et du `.rpm` (Rocky 9/10) dans des conteneurs systemd ; image sous Docker et Podman rootless (scripts `test/deliverables/`, aussi lancés en local) | CI à chaque push et PR |
 
 testcontainers fonctionne avec Docker ou Podman (`DOCKER_HOST` vers le socket Podman,
 `TESTCONTAINERS_RYUK_DISABLED=true` si nécessaire) : documenter les deux dans `test/e2e/README.md`.
