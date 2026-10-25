@@ -11,6 +11,14 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 10
+    ignore:
+      # @types/node suit la version majeure du runtime embarqué (Node 24, ADR-0001).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7 (compilateur natif) n'est pas lu par dependency-cruiser : les règles de couches
+      # passeraient sans rien analyser. À lever quand dependency-cruiser le prendra en charge.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     labels: ["dépendances"]
     commit-message:
       prefix: "build(deps)"
