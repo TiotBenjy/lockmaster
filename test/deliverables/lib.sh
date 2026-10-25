@@ -38,14 +38,21 @@ refuse() {
   if "$@" >/dev/null 2>&1; then fail "$label"; else ok "$label"; fi
 }
 
+# Texte sans codes de couleur ANSI ni retours chariot : les sorties de `compose run` et `compose exec`
+# en contiennent parfois (docker-compose derrière `podman compose`, sur un runner sans terminal).
+plain() {
+  printf '%s\n' "$1" | sed "s/$(printf '\033')\[[0-9;]*[A-Za-z]//g" | tr -d '\r'
+}
+
 # expect DESCRIPTION ATTENDU OBTENU
 expect() {
-  if [ "$2" = "$3" ]; then ok "$1"; else fail "$1 (attendu « $2 », obtenu « $3 »)"; fi
+  got=$(plain "$3")
+  if [ "$2" = "$got" ]; then ok "$1"; else fail "$1 (attendu « $2 », obtenu « $got »)"; fi
 }
 
 # expect_match DESCRIPTION MOTIF TEXTE (motif grep -E)
 expect_match() {
-  if printf '%s\n' "$3" | grep -Eq -- "$2"; then ok "$1"; else fail "$1 (motif « $2 » absent de « $3 »)"; fi
+  if plain "$3" | grep -Eq -- "$2"; then ok "$1"; else fail "$1 (motif « $2 » absent de « $(plain "$3") »)"; fi
 }
 
 # Image épinglée par digest (packaging/versions.env) : DEBIAN_12, ROCKY_9...

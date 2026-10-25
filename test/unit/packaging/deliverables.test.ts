@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -13,6 +13,11 @@ const ci = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8');
 describe('test/deliverables', () => {
   it.each(scripts)('%s : syntaxe sh valide', (script) => {
     expect(() => execFileSync('sh', ['-n', join(ROOT, 'test/deliverables', script)], { stdio: 'pipe' })).not.toThrow();
+  });
+
+  it('les comparaisons de lib.sh ignorent les codes de couleur ANSI (autotest)', () => {
+    const result = spawnSync('sh', [join(ROOT, 'test/deliverables/selftest.sh')], { encoding: 'utf8' });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
   });
 
   it('la CI lance chaque test sur chaque distribution et chaque moteur', () => {
