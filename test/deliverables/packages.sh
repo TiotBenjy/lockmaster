@@ -68,12 +68,16 @@ for _ in $(seq 1 30); do
 done
 expect "/healthz" ok "$healthz"
 
-# Séparation du signataire (ADR-0009).
+# Séparation du signataire (ADR-0009). Témoin d'abord : les chemins existent (vus par root), sinon
+# les refus ci-dessous ne prouveraient rien.
+check "témoin : fichiers du signataire et clé présents" x 'test -d /var/lib/lockmaster-signer && test -f /etc/lockmaster-signer/signer.toml && test -f /etc/lockmaster/master.key'
 refuse "lockmaster ne liste pas /var/lib/lockmaster-signer" x 'runuser -u lockmaster -- ls /var/lib/lockmaster-signer'
 refuse "lockmaster ne lit pas la configuration du signataire" x 'runuser -u lockmaster -- cat /etc/lockmaster-signer/signer.toml'
 refuse "lockmaster ne lit pas la clé maîtresse hors de son unité" x 'runuser -u lockmaster -- cat /etc/lockmaster/master.key'
 ping=$(x "runuser -u nobody -- /usr/lib/lockmaster/node/bin/node -e '$PING_JS' /run/lockmaster-sign/sign.sock" 2>&1 || true)
 expect_match "socket du signataire refusé à un autre compte" '^refusé E(ACCES|PERM)' "$ping"
+expect "signataire sans réseau (unité)" "PrivateNetwork=yes RestrictAddressFamilies=AF_UNIX" \
+  "$(x 'systemctl show -p PrivateNetwork -p RestrictAddressFamilies lockmaster-signer.service' | sort | tr '\n' ' ' | sed 's/ $//')"
 
 # Unités : validité et exposition (systemd-analyze security, échelle 0-100 de --threshold).
 check "systemd-analyze verify" x 'systemd-analyze verify /usr/lib/systemd/system/lockmaster.service /usr/lib/systemd/system/lockmaster-signer.socket /usr/lib/systemd/system/lockmaster-signer.service'

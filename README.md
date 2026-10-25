@@ -73,7 +73,7 @@ L'agent de code travaille dans un worktree par tâche, committe localement, puis
 `/integrer` (merge `--ff-only` dans la branche de départ). Il ne pousse jamais : c'est vous qui
 poussez.
 
-Prérequis sur la machine de développement : Node.js 24, pnpm 10, Docker ou Podman (tests e2e avec
+Prérequis sur la machine de développement : Node.js 24, pnpm 12 (version épinglée par `packageManager`), Docker ou Podman (tests e2e avec
 les vrais clients `apt`, `dnf`, `apk`), Python 3 (outil de recherche du skill UI), git.
 
 ## Réglages GitHub à faire une fois
