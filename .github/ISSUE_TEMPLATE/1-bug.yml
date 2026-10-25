@@ -1,0 +1,91 @@
+name: Bogue
+description: Un comportement incorrect de Lockmaster (hors vulnérabilité).
+title: "[bogue] "
+labels: ["bogue", "à trier"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre le temps de signaler ce problème.
+        **S'il s'agit d'une faille de sécurité, n'utilisez pas ce formulaire** : suivez SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Sortie de `lockmaster --version` (ou commit).
+      placeholder: "0.4.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Mode d'installation
+      options:
+        - Paquet .deb
+        - Paquet .rpm
+        - Image avec Docker
+        - Image avec Podman rootless (quadlets)
+        - Depuis les sources
+    validations:
+      required: true
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: Distribution de l'hôte
+      options:
+        - Debian 12
+        - Debian 13
+        - Rocky / RHEL / Alma 9
+        - Rocky / RHEL / Alma 10
+        - Autre (préciser dans la description)
+    validations:
+      required: true
+  - type: dropdown
+    id: composant
+    attributes:
+      label: Composant
+      multiple: true
+      options:
+        - Application (API, pipeline, publication)
+        - Interface web
+        - Service de signature
+        - Serveur de dépôt (nginx)
+        - CLI
+        - Authentification (local, LDAPS, OIDC)
+        - Paquets et déploiement
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Ce qui se passe, et ce que vous attendiez.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Étapes pour reproduire
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: journaux
+    attributes:
+      label: Journaux
+      description: |
+        Extraits pertinents (`journalctl -u lockmaster`, journaux du conteneur), avec le `requestId` s'il y en a un.
+        Retirez tout secret, jeton, mot de passe ou nom interne sensible.
+      render: text
+  - type: checkboxes
+    id: verifications
+    attributes:
+      label: Vérifications
+      options:
+        - label: Ce n'est pas une vulnérabilité de sécurité (sinon voir SECURITY.md).
+          required: true
+        - label: J'ai retiré les secrets et données sensibles des informations ci-dessus.
+          required: true

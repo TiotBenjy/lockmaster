@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Signaler une vulnérabilité (en privé)
+    url: https://github.com/TiotBenjy/lockmaster/security/advisories/new
+    about: Ne jamais ouvrir d'issue publique pour un problème de sécurité. Voir SECURITY.md.
+  - name: Poser une question
+    url: https://github.com/TiotBenjy/lockmaster/discussions
+    about: Questions d'installation, d'usage ou de configuration.

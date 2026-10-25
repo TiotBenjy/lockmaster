@@ -1,0 +1,201 @@
+# lockmaster.toml : configuration de référence : TOUTES les clés, avec leur valeur par défaut.
+#
+# Emplacement : `--config <fichier>` > variable LOCKMASTER_CONFIG > /etc/lockmaster/lockmaster.toml.
+# En développement (`pnpm dev`), le fichier ./lockmaster.dev.toml (généré par `pnpm dev:init`,
+# ignoré par git) est utilisé, avec data_dir = ./.data et une clé maîtresse de dev dans ./.data-keys/
+# (jamais sous data_dir : lockmaster refuse une clé maîtresse située dans le dossier de données).
+#
+# Règles :
+#  - Une seule source de configuration : ce fichier, surchargeable clé par clé par des variables
+#    d'environnement LOCKMASTER__<SECTION>__<SOUS_SECTION>__<CLE> (séparateur « __ », casse ignorée,
+#    les « _ » simples font partie du nom de clé). Exemples :
+#      LOCKMASTER__HTTP__LISTEN=":8443"
+#      LOCKMASTER__SCANNERS__CLAMAV__MAX_STREAM_BYTES=1073741824
+#      LOCKMASTER__SECURITY__MFA_REQUIRED_ROLES='["admin"]'     (tableaux/tables : JSON)
+#  - Toute clé inconnue (fichier ou variable LOCKMASTER__*) est une erreur au démarrage.
+#  - Durées : chaîne "<entier><unité>" avec unité ms|s|m|h|d (ex. "30m"). Tailles : entier en octets.
+#    Adresses d'écoute : "hôte:port" ou ":port" (toutes interfaces).
+#  - Les secrets ne sont JAMAIS écrits ici : utiliser les clés *_file. lockmaster refuse de démarrer
+#    si un fichier secret est lisible par « others » ou n'appartient pas à root/lockmaster.
+#  - Les réglages métier (politique CVE, rétention, planifications, sources amont, notifications)
+#    se modifient dans l'UI/API et vivent en base, pas ici.
+#  - Implémentation : src/config/ (smol-toml + schéma zod, parseurs de durée/adresse maison).
+
+[server]
+# URL de l'APPLICATION (administration, API, CI) : liens e-mail, cookies, redirections OIDC.
+# Les clients apt/dnf/apk n'utilisent pas cette URL mais le public_url d'une cible (plus bas).
+public_url = "https://lockmaster.internal.example.com"
+data_dir   = "/var/lib/lockmaster"
+
+[http]
+listen = ":8080"
+# Reverse proxies autorisés à fixer X-Forwarded-For/-Proto (IP ou CIDR). Vide = en-têtes ignorés.
+trusted_proxies = []
+# TLS intégré (optionnel). Laisser vide si un reverse proxy termine TLS.
+tls_cert_file = ""
+tls_key_file  = ""
+# ACME intégré (optionnel, exclusif avec tls_*_file). Jalon M9.
+acme_domains = []
+acme_email   = ""
+max_upload_bytes = 2147483648     # 2 GiB
+request_timeout  = "15m"          # uploads longs compris
+
+[security]
+# 32 octets aléatoires (base64). Chiffre au repos les clés de signature et les secrets en base.
+# Créée par `lockmaster init` (ou `lockmaster keys gen-master --out <fichier>`).
+# Propriétaire root:lockmaster, mode 0440 (paquets) ; en conteneur : secret monté lisible par l'UID 10001.
+# Ne JAMAIS la placer dans data_dir ni dans les sauvegardes.
+master_key_file = "/etc/lockmaster/master.key"
+session_idle_timeout  = "30m"
+session_max_lifetime  = "12h"
+login_max_failures    = 5
+login_lockout         = "15m"
+login_rate_per_minute = 10
+mfa_required_roles    = ["admin", "maintainer"]
+
+[auth.oidc]
+enabled            = false
+issuer             = ""             # ex. "https://sso.example.com/realms/infra"
+client_id          = ""
+client_secret_file = ""             # ex. "/etc/lockmaster/oidc_client_secret"
+scopes             = ["openid", "profile", "email", "groups"]
+groups_claim       = "groups"
+# MFA des comptes OIDC (ADR-0010 §5) : "idp" = MFA de l'IdP acceptée si le jeton la prouve
+# (amr/acr + auth_time), sinon TOTP de l'application ; "app" = toujours le TOTP de l'application.
+mfa                = "idp"
+mfa_amr            = ["mfa", "otp", "hwk", "swk", "sc"]
+mfa_acr            = []             # ex. ["urn:example:mfa"] selon l'IdP
+mfa_max_age        = "12h"
+# Le mapping groupe -> rôle se fait dans l'UI/API (table group_role, ADR-0010), pas ici.
+
+# Connecteur Active Directory natif en LDAPS (ADR-0010). Les deux connecteurs peuvent coexister.
+[auth.ldap]
+enabled            = false
+name               = "ad"                       # identifiant du connecteur (lié aux comptes et groupes)
+# Plusieurs contrôleurs de domaine : essayés dans l'ordre, bascule automatique.
+urls               = ["ldaps://dc1.corp.example.com:636", "ldaps://dc2.corp.example.com:636"]
+starttls           = false                      # true si URL ldap:// sur 389 (TLS reste obligatoire)
+ca_file            = "/etc/lockmaster/ad-ca.pem"     # CA épinglée des contrôleurs de domaine
+base_dn            = "DC=corp,DC=example,DC=com"
+user_filter        = "(&(objectClass=user)(sAMAccountName={username}))"
+# Compte de service en LECTURE SEULE pour résoudre les groupes (imbriqués) et synchroniser.
+bind_dn            = "CN=svc-lockmaster,OU=Service Accounts,DC=corp,DC=example,DC=com"
+bind_password_file = "/etc/lockmaster/ad_bind_password"
+timeout            = "10s"
+
+[auth.directory]
+sync_interval  = "1h"     # rafraîchissement des appartenances aux groupes d'annuaire
+max_staleness  = "72h"    # au-delà sans synchronisation réussie : jetons d'API des comptes d'annuaire refusés
+# Connexion locale : `disable_local_login = true` la coupe pour les comptes ordinaires, mais JAMAIS pour
+# les membres d'un groupe local de secours (break_glass) : l'accès de secours ne se désactive pas.
+disable_local_login = false
+
+[signer]
+# Socket du service de signature (ADR-0009). L'application ne détient aucune clé privée.
+socket  = "/run/lockmaster-sign/sign.sock"
+timeout = "30s"
+
+[publish]
+generations_kept = 5              # générations conservées par canal (by-hash, rollback)
+valid_until_days = 7              # APT Valid-Until (SEC-05) ; republication automatique à mi-parcours
+verify_interval  = "15m"          # vérification HTTP périodique de chaque cible (détection de gel/dérive)
+
+# Cibles de publication : où l'application dépose l'arborescence statique servie par nginx
+# (ADR-0003, ADR-0008). Au moins une cible. La PREMIÈRE est la cible principale : son public_url
+# sert aux instructions client. Les cibles se déclarent uniquement dans ce fichier
+# (pas de surcharge par variable d'environnement pour les tableaux de tables).
+
+[[publish.targets]]
+name       = "local"
+kind       = "local"              # local | rsync  (s3 : après la v1)
+# Racine de la cible (contient public/ et private/). Même hôte que nginx, ou volume partagé.
+path       = "/srv/lockmaster-repo"
+public_url = "https://repo.example.com"   # URL servie par nginx, vue par les clients
+verify     = true                 # vérifie chaque bascule par HTTP via public_url
+hardlink   = true                 # liens physiques entre canaux À L'INTÉRIEUR de la cible (jamais vers les blobs)
+
+# Exemple : serveur de dépôt distant en DMZ, alimenté par rsync sur SSH.
+# Côté serveur (paquet lockmaster-repo) : compte lockmaster-sync, authorized_keys avec
+#   command="rrsync /srv/lockmaster-repo",restrict ssh-ed25519 AAAA... lockmaster@app
+# [[publish.targets]]
+# name             = "dmz"
+# kind             = "rsync"
+# destination      = "lockmaster-sync@repo-dmz.example.com"   # la racine est imposée par rrsync
+# port             = 22
+# ssh_key_file     = "/etc/lockmaster/ssh/dmz_ed25519"        # 0400 lockmaster:lockmaster, dédiée à cette cible
+# known_hosts_file = "/etc/lockmaster/ssh/known_hosts"        # empreinte épinglée (lockmaster targets trust dmz)
+# rsync_binary     = "/usr/bin/rsync"
+# public_url       = "https://repo-dmz.example.com"
+# verify           = true
+
+# Exemple (après la v1, non disponible en v1) : stockage objet compatible S3.
+# [[publish.targets]]
+# name       = "s3"
+# kind       = "s3"
+# endpoint   = "https://s3.example.com"
+# bucket     = "lockmaster-repo"
+# prefix     = ""
+# region     = "eu-west-3"
+# access_key_id_file     = "/etc/lockmaster/s3_access_key_id"
+# secret_access_key_file = "/etc/lockmaster/s3_secret_access_key"
+# public_url = "https://repo-cdn.example.com"
+
+[scanners.clamav]
+address          = "unix:///run/clamav/clamd.sock"   # préféré ; TCP seulement local ou via tunnel TLS (SEC-14)
+canary_interval  = "15m"          # échantillon piégé par format, doit revenir FOUND (SEC-14)
+timeout          = "120s"
+# Doit être <= StreamMaxLength, MaxScanSize et MaxFileSize de clamd.conf, et clamd doit avoir
+# AlertExceedsMax activé : sinon un fichier trop gros revient « OK » sans être analysé.
+# `lockmaster doctor` vérifie ces réglages ; au-delà de cette taille, le paquet est refusé (fail closed).
+max_stream_bytes = 2147483648
+max_signature_age = "48h"         # au-delà : état dégradé + notification
+
+[scanners.grype]
+binary     = "/usr/lib/lockmaster/bin/grype"   # image OCI : "/app/bin/grype" (fixé par `lockmaster init`)
+db_dir     = "/var/lib/lockmaster/vulndb"
+timeout    = "300s"
+max_db_age = "5d"                 # base plus vieille : analyse en échec (fail closed)
+auto_update = true                # false en air-gap : utiliser `lockmaster feeds import`
+
+[feeds]
+offline  = false
+# Empreintes OpenPGP des clés autorisées à signer les bundles air-gap (SEC-23). Vide = import refusé.
+trusted_bundle_keys = []
+kev_url  = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+# URL du fichier EPSS complet (CSV gzip) : vérifier l'URL officielle actuelle sur first.org/epss
+# avant M4 ; l'API paginée api.first.org n'est utilisée qu'en repli.
+epss_url = "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"
+
+[smtp]
+enabled       = false
+host          = ""
+port          = 587
+starttls      = true
+username      = ""
+password_file = ""
+from          = ""                # ex. "lockmaster <lockmaster@example.com>"
+
+[stats]
+# Réception des journaux d'accès nginx (format lockmaster_json) en syslog UDP, pour les statistiques
+# de téléchargement. Désactivé par défaut. Voir deploy/nginx/lockmaster-repo.conf (access_log syslog:).
+syslog_listen   = ""              # ex. "10.0.0.5:5514" (interface interne uniquement)
+allowed_sources = []              # IP/CIDR des serveurs de dépôt autorisés à envoyer
+
+[limits]
+# Protection contre l'épuisement de ressources (SEC-22).
+uploads_concurrent_per_principal = 4
+upload_bytes_per_principal_per_day = 53687091200   # 50 GiB
+min_free_disk_bytes = 10737418240                  # refus des uploads sous ce seuil (data_dir)
+scrypt_queue_max    = 32                           # au-delà : 503 sur /login
+zstd_window_log_max = 27
+xz_memory_limit_bytes = 268435456
+fts_query_max_length = 128
+
+[log]
+level  = "info"                   # debug|info|warn|error
+format = "json"                   # json|pretty (pretty seulement en dev)
+
+[metrics]
+enabled        = true
+listen_metrics = "127.0.0.1:9090" # /metrics sans jeton uniquement sur cette adresse
+token_file     = ""               # si renseigné : /metrics aussi sur listen, avec Bearer

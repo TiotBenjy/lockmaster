@@ -1,0 +1,24 @@
+# Compte lockmaster : serveur de dépôt nginx (seul service exposé à la flotte), lecture seule (ADR-0008).
+[Container]
+ContainerName=repo
+Image=docker.io/nginxinc/nginx-unprivileged:stable-alpine
+Network=repo.network
+# nginx (UID 101 dans l'image) est mappé sur le compte hôte lockmaster : il lit les fichiers publiés par
+# l'application, montés en lecture seule. Le compte lockmaster-signer reste totalement séparé.
+UserNS=keep-id:uid=101,gid=101
+PublishPort=8443:8443
+PublishPort=8080:8080
+Volume=repo-public.volume:/srv/lockmaster-repo:ro
+Volume=%h/nginx/lockmaster-repo.container.conf:/etc/nginx/conf.d/default.conf:ro
+Volume=%h/nginx/tls:/etc/nginx/tls:ro
+ReadOnly=true
+Tmpfs=/tmp
+Tmpfs=/var/cache/nginx
+DropCapability=ALL
+NoNewPrivileges=true
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

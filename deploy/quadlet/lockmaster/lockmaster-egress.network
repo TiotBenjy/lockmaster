@@ -1,0 +1,3 @@
+# Sorties de l'application (dépôts amont, SMTP, cibles rsync, OIDC) et publication du port d'admin.
+[Network]
+NetworkName=lockmaster-egress

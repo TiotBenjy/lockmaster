@@ -1,0 +1,52 @@
+[Unit]
+Description=lockmaster - gestionnaire de dépôts APT/RPM/APK (application)
+Documentation=file:///usr/share/doc/lockmaster/README.md
+Wants=network-online.target
+After=network-online.target lockmaster-signer.socket
+Requires=lockmaster-signer.socket
+
+[Service]
+Type=exec
+User=lockmaster
+Group=lockmaster
+# Seul moyen de joindre le signataire ; ne donne aucun accès à ses fichiers (ADR-0009).
+SupplementaryGroups=lockmaster-sign
+ExecStart=/usr/bin/lockmaster serve --config /etc/lockmaster/lockmaster.toml
+Restart=on-failure
+RestartSec=5s
+RestartPreventExitStatus=78
+
+StateDirectory=lockmaster
+StateDirectoryMode=0750
+UMask=0027
+# Le chemin de chaque cible de publication « local » est ajouté par `lockmaster init` / `lockmaster targets`
+# dans /etc/systemd/system/lockmaster.service.d/targets.conf (ReadWritePaths=/srv/lockmaster-repo).
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryDenyWriteExecute=no
+
+[Install]
+WantedBy=multi-user.target

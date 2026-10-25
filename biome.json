@@ -1,0 +1,80 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "root": true,
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "src/**",
+      "test/**",
+      "scripts/**",
+      "package.json",
+      "biome.json",
+      "tsconfig.json",
+      "vitest.config.ts",
+      ".dependency-cruiser.cjs",
+      "!src/web/static/fonts",
+      "!src/web/static/vendor"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "trailingCommas": "all",
+      "semicolons": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConsole": "error"
+      },
+      "style": {
+        "noNonNullAssertion": "error",
+        "useImportType": "error",
+        "useNodejsImportProtocol": "error"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "error",
+        "noGlobalEval": "error"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["test/**", "**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    }
+  ]
+}

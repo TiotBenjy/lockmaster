@@ -1,0 +1,16 @@
+# Compte lockmaster : ClamAV, joignable uniquement par l'application (réseau interne + socket Unix).
+[Container]
+ContainerName=clamav
+Image=docker.io/clamav/clamav:1.4
+Network=lockmaster.network
+Volume=clamav-db.volume:/var/lib/clamav
+Volume=clamav-sock.volume:/run/clamav
+NoNewPrivileges=true
+# À valider en M0 : droits du socket clamd vus par l'application (UserNS=keep-id). Le volume
+# clamav-sock n'est monté que dans clamav et lockmaster ; LocalSocketMode 660/666 selon le mapping retenu.
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
