@@ -1,4 +1,5 @@
 import { chmodSync, existsSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cli, freePort, installation } from '../../helpers/cli.js';
@@ -88,6 +89,37 @@ describe('lockmaster config check|show', () => {
   it('LOCKMASTER_CONFIG est lu quand --config est absent', async () => {
     const { config } = await setup();
     expect((await cli(['config', 'check'], { env: { LOCKMASTER_CONFIG: config } })).code).toBe(0);
+  });
+});
+
+describe('lockmaster healthcheck', () => {
+  it("refuse un nom d'hôte : la sonde ne joint qu'une adresse IP, sans résolution DNS", async () => {
+    const { config } = await setup();
+    const named = config.replace('lockmaster.toml', 'named.toml');
+    writeFileSync(
+      named,
+      readFileSync(config, 'utf8').replace(/listen = "127\.0\.0\.1:(\d+)"/, 'listen = "localhost:$1"'),
+    );
+    const result = await cli(['healthcheck', '--config', named]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('adresse IP');
+  });
+});
+
+describe('lockmaster : erreurs inattendues', () => {
+  it("serve sur un port occupé : code 70 avec la cause (EADDRINUSE) sur la sortie d'erreur", async () => {
+    const { config } = await setup();
+    await cli(['init', '--non-interactive', '--config', config]);
+    const port = Number(/listen = "127\.0\.0\.1:(\d+)"/.exec(readFileSync(config, 'utf8'))?.[1]);
+    const blocker = createServer();
+    await new Promise<void>((resolve) => blocker.listen(port, '127.0.0.1', resolve));
+    try {
+      const result = await cli(['serve', '--config', config]);
+      expect(result.code).toBe(70);
+      expect(result.stderr).toContain('EADDRINUSE');
+    } finally {
+      blocker.close();
+    }
   });
 });
 

@@ -108,7 +108,10 @@ export async function runCli(argv: readonly string[], runtime: CliRuntime): Prom
     return await command.run({ runtime, options: values });
   } catch (error) {
     if (!(error instanceof LockmasterError)) {
-      runtime.stderr.write('erreur interne inattendue\n');
+      // Sortie d'erreur destinée à l'opérateur (journald), jamais à un client HTTP : la cause
+      // (EADDRINUSE, EACCES...) est nécessaire au diagnostic d'une boucle de redémarrage.
+      const code = (error as NodeJS.ErrnoException).code;
+      runtime.stderr.write(`erreur inattendue${code ? ` (${code})` : ''} : ${(error as Error).message}\n`);
       return EXIT.SOFTWARE;
     }
     runtime.stderr.write(`${error.message}\n`);
