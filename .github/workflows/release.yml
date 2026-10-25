@@ -47,7 +47,7 @@ jobs:
       - name: Gardes (motifs, tests de sécurité, contrats, licences, vulnérabilités)
         run: |
           node scripts/check-forbidden.mjs
-          node scripts/check-test-guards.mjs --base="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+          node scripts/check-test-guards.mjs --base="$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)"
           node scripts/check-contracts.mjs
           node scripts/check-licenses.mjs
           pnpm audit --audit-level moderate
