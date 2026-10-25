@@ -175,6 +175,12 @@ Exigences `docs/11` : SEC-03 (clés hors bande, `gpgkey=file://`, empreinte affi
 
 Exigences `docs/11` : SEC-08 (jetons), SEC-09 (OIDC `(iss, sub)`), SEC-10 (MFA), SEC-11 (résolveurs de ressource, listes filtrées), SEC-12 (config htmx, `no-store`), SEC-18 (4 yeux sur les réglages de sécurité).
 
+Reporté de la revue de sécurité de M0 : le hook `onRequest` de `src/http/authorize.ts` refuse
+aujourd'hui toute route non publique ; il doit déléguer au contrôle d'accès. `http.request_timeout`
+(15 min) s'applique à toutes les routes : avant la première route POST publique (connexion), un
+délai court pour les requêtes ordinaires, un délai propre aux uploads dans leur flux, et une limite
+de connexions par IP (sinon un client lent occupe les 1024 connexions).
+
 - [ ] Sessions cookie `__Host-`, CSRF, connexion locale, verrouillage, limite par IP, MFA TOTP + codes
       de récupération, réinitialisation de mot de passe (SMTP)
 - [ ] RBAC 5 rôles + portée par dépôt, attribués **uniquement par groupes** (ADR-0010) : groupes

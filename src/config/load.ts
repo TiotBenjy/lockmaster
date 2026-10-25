@@ -5,7 +5,7 @@ import type { z } from 'zod';
 import { LockmasterError } from '../domain/errors.js';
 import { applyEnvOverrides } from './env.js';
 import { type Config, configSchema } from './schema.js';
-import { isInside } from './secret-file.js';
+import { isInsideReally } from './secret-file.js';
 
 export const DEFAULT_CONFIG_PATH = '/etc/lockmaster/lockmaster.toml';
 const MAX_CONFIG_BYTES = 1024 * 1024;
@@ -69,7 +69,7 @@ export function loadConfig(options: { path: string; env: Env }): Config {
   if (!result.success) throw formatIssues(options.path, result.error);
   const config = result.data;
   // La clé maîtresse ne doit jamais être dans le dossier de données ni dans ses sauvegardes (docs/02 §3.3).
-  if (isInside(config.server.data_dir, config.security.master_key_file)) {
+  if (isInsideReally(config.server.data_dir, config.security.master_key_file)) {
     throw new LockmasterError(
       'CONFIG_INVALID',
       `${options.path} : security.master_key_file ne doit pas se trouver sous server.data_dir`,

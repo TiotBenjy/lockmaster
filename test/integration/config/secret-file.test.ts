@@ -36,6 +36,18 @@ describe('readSecretFile', () => {
     expect(codeOf(() => readSecretFile(secret('k', 'abc', mode)))).toBe('SECRET_FILE_PERMISSIONS');
   });
 
+  it.each([0o620, 0o660, 0o420])('refuse un fichier modifiable par le groupe (mode %o)', (mode) => {
+    expect(codeOf(() => readSecretFile(secret('k', 'abc', mode)))).toBe('SECRET_FILE_PERMISSIONS');
+  });
+
+  it('refuse un fichier lisible par un groupe non autorisé, accepte le même fichier sans droit de groupe', () => {
+    const otherGid = (process.getgid?.() ?? 0) + 1;
+    expect(codeOf(() => readSecretFile(secret('g', 'abc', 0o440), { allowedGids: [otherGid] }))).toBe(
+      'SECRET_FILE_GROUP',
+    );
+    expect(readSecretFile(secret('h', 'abc', 0o400), { allowedGids: [otherGid] }).toString()).toBe('abc');
+  });
+
   it("refuse un fichier dont le propriétaire n'est ni root ni le compte courant", () => {
     const file = secret('k', 'abc', 0o400);
     const currentUid = process.getuid?.() ?? 0;

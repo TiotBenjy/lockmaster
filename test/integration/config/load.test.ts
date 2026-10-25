@@ -1,3 +1,4 @@
+import { symlinkSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadConfig, resolveConfigPath } from '../../../src/config/load.js';
 import { LockmasterError } from '../../../src/domain/errors.js';
@@ -95,6 +96,22 @@ describe('loadConfig', () => {
     const { file, cleanup } = withFile(content);
     try {
       expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe(code);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('refuse une clé maîtresse située sous data_dir à travers un lien symbolique', () => {
+    const { root, cleanup } = makeTree({ 'data/master.key': 'x', 'etc/keep': '' });
+    try {
+      symlinkSync(`${root}/data`, `${root}/datalink`);
+      const toml = MINIMAL_TOML.replace('data_dir = "/var/lib/lockmaster"', `data_dir = "${root}/datalink"`);
+      const file = `${root}/etc/lockmaster.toml`;
+      writeFileSync(file, `${toml}\n[security]\nmaster_key_file = "${root}/data/master.key"\n`);
+      expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe('CONFIG_INVALID');
+      // Clé pas encore créée : c'est le dossier parent réel qui compte.
+      writeFileSync(file, `${toml}\n[security]\nmaster_key_file = "${root}/data/sub/../absente.key"\n`);
+      expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe('CONFIG_INVALID');
     } finally {
       cleanup();
     }

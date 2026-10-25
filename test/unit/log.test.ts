@@ -18,12 +18,20 @@ describe('createLogger (SEC-29)', () => {
     expect(out.lines.map((line) => line['msg'])).toEqual(['gardé']);
   });
 
+  it('journalise une requête sans en-têtes ni chaîne de requête', () => {
+    const out = new LogCapture();
+    const req = { method: 'GET', url: '/login?code=secret', ip: '10.0.0.1', headers: { authorization: 'secret' } };
+    createLogger({ level: 'info', format: 'json' }, out).info({ req }, 'requête');
+    expect(out.lines[0]?.['req']).toEqual({ method: 'GET', path: '/login', ip: '10.0.0.1' });
+    expect(out.text()).not.toContain('secret');
+  });
+
   it.each([
-    [{ req: { headers: { authorization: 'Bearer lkm_secret' } } }],
-    [{ req: { headers: { cookie: '__Host-session=secret' } } }],
-    [{ req: { headers: { 'x-csrf-token': 'secret' } } }],
     [{ res: { headers: { 'set-cookie': ['__Host-session=secret'] } } }],
     [{ headers: { authorization: 'Basic secret' } }],
+    [{ headers: { 'proxy-authorization': 'Basic secret' } }],
+    [{ upstream: { headers: { authorization: 'Bearer secret' } } }],
+    [{ request: { headers: { cookie: 'a=secret', 'x-csrf-token': 'secret' } } }],
   ])('masque les en-têtes sensibles : %j', (payload) => {
     const out = new LogCapture();
     createLogger({ level: 'info', format: 'json' }, out).info(payload, 'requête');
