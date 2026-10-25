@@ -77,17 +77,11 @@
       "Bash(git config --global *)",
       "Bash(git config --system *)",
       "Edit(.claude/settings.json)",
-      "Write(.claude/settings.json)",
       "Edit(.claude/hooks/**)",
-      "Write(.claude/hooks/**)",
       "Edit(.claude/agents/**)",
-      "Write(.claude/agents/**)",
       "Edit(.claude/skills/**)",
-      "Write(.claude/skills/**)",
       "Edit(.claude/rules/**)",
-      "Write(.claude/rules/**)",
-      "Edit(.worktreeinclude)",
-      "Write(.worktreeinclude)"
+      "Edit(.worktreeinclude)"
     ]
   },
   "hooks": {
