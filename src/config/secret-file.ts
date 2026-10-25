@@ -1,10 +1,10 @@
-import { closeSync, constants, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
+import { closeSync, constants, fstatSync, lstatSync, openSync, readlinkSync, readSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { LockmasterError } from '../domain/errors.js';
 
 // Lecture des fichiers secrets (*_file, clé maîtresse) : docs/02 §3.3, deploy/lockmaster.example.toml.
 // Refus si le fichier est accessible à « others », modifiable par le groupe, lisible par un groupe
-// auquel le service n'appartient pas, ou s'il n'appartient ni à root ni au compte courant
+// autre que le groupe principal du service, ou s'il n'appartient ni à root ni au compte courant
 // (référence : root:lockmaster 0440). Les contrôles portent sur le descripteur ouvert (fstat), donc
 // sur la cible d'un éventuel lien.
 
@@ -15,15 +15,20 @@ export interface SecretFileOptions {
 }
 
 const DEFAULT_MAX_BYTES = 64 * 1024;
+const MAX_LINK_HOPS = 40;
 
 function defaultUids(): number[] {
   const uid = process.getuid?.();
   return uid === undefined ? [0] : [0, uid];
 }
 
-function defaultGids(): number[] {
-  const gid = process.getgid?.();
-  return [0, ...(gid === undefined ? [] : [gid]), ...(process.getgroups?.() ?? [])];
+/**
+ * Groupes admis pour un secret lisible par le groupe : root et le groupe PRINCIPAL du service.
+ * Jamais ses groupes supplémentaires : lockmaster-sign est partagé avec le signataire et
+ * lockmaster-repo avec nginx (ADR-0009, docs/02 §3.8).
+ */
+export function defaultAllowedGids(): number[] {
+  return [0, process.getgid?.() ?? 0];
 }
 
 function fail(code: string, path: string, reason: string): LockmasterError {
@@ -51,7 +56,7 @@ export function readSecretFile(path: string, options: SecretFileOptions = {}): B
     if (!allowedUids.includes(stat.uid)) {
       throw fail('SECRET_FILE_OWNER', path, `propriétaire ${stat.uid} non autorisé (root ou le compte du service)`);
     }
-    if ((stat.mode & 0o040) !== 0 && !(options.allowedGids ?? defaultGids()).includes(stat.gid)) {
+    if ((stat.mode & 0o040) !== 0 && !(options.allowedGids ?? defaultAllowedGids()).includes(stat.gid)) {
       throw fail('SECRET_FILE_GROUP', path, `lisible par le groupe ${stat.gid}, qui n'est pas celui du service`);
     }
     if (stat.size > maxBytes) throw fail('SECRET_FILE_TOO_LARGE', path, `plus de ${maxBytes} octets`);
@@ -72,14 +77,31 @@ export function readSecretFile(path: string, options: SecretFileOptions = {}): B
  * Chemin réel (liens symboliques résolus) ; pour un chemin qui n'existe pas encore, résout le plus
  * proche ancêtre existant et y ajoute le reste.
  */
-export function realpathLenient(path: string): string {
+export function realpathLenient(path: string, linkHops = 0): string {
   const absolute = resolve(path);
+  const unresolvable = (reason: string) =>
+    new LockmasterError('PATH_UNRESOLVABLE', `chemin ${absolute} impossible à résoudre (${reason})`);
   try {
     return realpathSync(absolute);
-  } catch {
-    const parent = dirname(absolute);
-    return parent === absolute ? absolute : join(realpathLenient(parent), basename(absolute));
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    // Seule l'absence est tolérée ; toute autre erreur (EACCES, ELOOP...) refuse.
+    if (code !== 'ENOENT') throw unresolvable(code ?? 'erreur inconnue');
   }
+  let isLink = false;
+  try {
+    isLink = lstatSync(absolute).isSymbolicLink();
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') throw unresolvable(code ?? 'erreur inconnue');
+  }
+  if (isLink) {
+    // Lien pendant : on suit sa cible, là où le fichier serait créé.
+    if (linkHops >= MAX_LINK_HOPS) throw unresolvable('trop de liens symboliques');
+    return realpathLenient(resolve(dirname(absolute), readlinkSync(absolute)), linkHops + 1);
+  }
+  const parent = dirname(absolute);
+  return parent === absolute ? absolute : join(realpathLenient(parent, linkHops), basename(absolute));
 }
 
 /** Comme `isInside`, sur les chemins lexicaux et sur les chemins réels (liens résolus). */

@@ -117,6 +117,23 @@ describe('loadConfig', () => {
     }
   });
 
+  it('refuse une clé maîtresse désignée par un lien pendant qui pointe sous data_dir', () => {
+    const { root, cleanup } = makeTree({ 'data/keep': '', 'etc/keep': '' });
+    try {
+      // Fichier lien pendant, puis dossier lien pendant : la clé serait créée dans data_dir.
+      symlinkSync(`${root}/data/master.key`, `${root}/etc/master.key`);
+      symlinkSync('../data/sub', `${root}/etc/kdir`);
+      const file = `${root}/etc/lockmaster.toml`;
+      const toml = MINIMAL_TOML.replace('data_dir = "/var/lib/lockmaster"', `data_dir = "${root}/data"`);
+      writeFileSync(file, `${toml}\n[security]\nmaster_key_file = "${root}/etc/master.key"\n`);
+      expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe('CONFIG_INVALID');
+      writeFileSync(file, `${toml}\n[security]\nmaster_key_file = "${root}/etc/kdir/master.key"\n`);
+      expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe('CONFIG_INVALID');
+    } finally {
+      cleanup();
+    }
+  });
+
   it("indique la clé fautive dans le message d'erreur", () => {
     const { file, cleanup } = withFile(`${MINIMAL_TOML}\n[http]\nrequest_timeout = "15 minutes"\n`);
     try {
