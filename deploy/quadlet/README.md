@@ -51,7 +51,16 @@ sudo -u lockmaster-signer podman run --rm --network none --userns keep-id:uid=10
 sudo -u lockmaster-signer XDG_RUNTIME_DIR=/run/user/$(id -u lockmaster-signer) systemctl --user daemon-reload
 sudo -u lockmaster-signer XDG_RUNTIME_DIR=/run/user/$(id -u lockmaster-signer) systemctl --user start lockmaster-signer
 sudo -u lockmaster XDG_RUNTIME_DIR=/run/user/$(id -u lockmaster) systemctl --user daemon-reload
-# (init de l'application : voir docs/08 §3, puis)
+# Initialisation de l'application : le mot de passe admin passe par un secret Podman temporaire,
+# monté dans ce seul conteneur jetable (jamais dans lockmaster.container), puis supprimé.
+sudo -u lockmaster bash -c 'read -rs -p "Mot de passe admin : " p && printf "%s\n" "$p" | podman secret create lockmaster-admin-password -'
+sudo -u lockmaster podman run --rm --network none --userns keep-id:uid=10001,gid=10101 \
+  -v lockmaster-data:/var/lib/lockmaster -v ~lockmaster/lockmaster.toml:/etc/lockmaster/lockmaster.toml:ro,z \
+  --secret lockmaster-master-key,type=mount,target=/run/secrets/master_key,uid=10001,gid=10101,mode=0400 \
+  --secret lockmaster-admin-password,type=mount,target=/run/secrets/admin_password,uid=10001,gid=10101,mode=0400 \
+  -e LOCKMASTER__SECURITY__MASTER_KEY_FILE=/run/secrets/master_key \
+  ghcr.io/tiotbenjy/lockmaster:1 init --non-interactive --admin-password-file /run/secrets/admin_password
+sudo -u lockmaster podman secret rm lockmaster-admin-password
 sudo -u lockmaster XDG_RUNTIME_DIR=/run/user/$(id -u lockmaster) systemctl --user start lockmaster clamav repo
 ```
 

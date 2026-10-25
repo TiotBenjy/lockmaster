@@ -31,7 +31,7 @@ describe('packaging/Containerfile', () => {
   it("part de l'image de base épinglée par digest, passée par image.sh", () => {
     const froms = [...containerfile.matchAll(/^FROM (\S+)/gm)].map(([, image]) => image);
     expect(froms.length).toBeGreaterThanOrEqual(2);
-    for (const image of froms) expect(image).toBe('${BASE_IMAGE}');
+    for (const image of froms) expect(image).toMatch(/^\$\{BASE_IMAGE\}$/);
     expect(read('packaging/image.sh')).toMatch(/--build-arg "BASE_IMAGE=\$DEBIAN_SLIM_IMAGE"/);
   });
 
