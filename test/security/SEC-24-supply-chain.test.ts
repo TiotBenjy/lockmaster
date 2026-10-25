@@ -127,18 +127,56 @@ describe('SEC-24 : better-sqlite3 compilé depuis les sources', () => {
 describe('SEC-24 : pnpm', () => {
   const workspace = read('pnpm-workspace.yaml');
 
-  it('packageManager épinglé avec son empreinte', () => {
-    expect(packageJson.packageManager).toMatch(/^pnpm@10\.\d+\.\d+\+sha512\.[0-9a-f]{128}$/);
+  it('packageManager épinglé avec son empreinte, mêmes version et empreinte dans le lockfile (ADR-0014)', () => {
+    const pinned = /^pnpm@(12\.\d+\.\d+)\+sha512\.([0-9a-f]{128})$/.exec(packageJson.packageManager ?? '');
+    expect(pinned, packageJson.packageManager).not.toBeNull();
+    const [, version, hex] = pinned ?? [];
+    const lockfile = read('pnpm-lock.yaml');
+    expect(lockfile).toMatch(
+      new RegExp(`packageManagerDependencies:\\n {6}pnpm:\\n {8}specifier: ${version}\\n {8}version: ${version}\\n`),
+    );
+    const integrity = Buffer.from(hex ?? '', 'hex').toString('base64');
+    expect(lockfile).toContain(`  pnpm@${version}:\n    resolution: {integrity: sha512-${integrity}}`);
   });
 
   it('seuls better-sqlite3 et esbuild exécutent un script d installation', () => {
-    const list = /^onlyBuiltDependencies:\n((?: {2}- .+\n)+)/m.exec(workspace)?.[1] ?? '';
-    expect(
-      list
-        .trim()
-        .split('\n')
-        .map((line) => line.replace(/^\s*- /, '')),
-    ).toEqual(['better-sqlite3', 'esbuild']);
+    const table = /^allowBuilds:\n((?: {2}\S.*\n)+)/m.exec(workspace)?.[1] ?? '';
+    expect(table.split('\n').filter(Boolean)).toEqual(['  better-sqlite3: true', '  esbuild: true']);
+    // Réglages qui élargiraient ou remplaceraient cette liste ; onlyBuiltDependencies est ignoré par
+    // pnpm 12 et donnerait l'illusion d'un contrôle.
+    expect(workspace).not.toMatch(
+      /^\s*(onlyBuiltDependencies|neverBuiltDependencies|dangerouslyAllowAllBuilds|permissions):/m,
+    );
+  });
+
+  it('pnpm-workspace.yaml ne contient que les réglages autorisés, délai strict', () => {
+    // Liste fermée : un réglage nouveau (cache distant, outils Rust, approbations...) exige de
+    // modifier ce test, donc une revue explicite.
+    const keys = [...workspace.matchAll(/^([A-Za-z][\w-]*):/gm)].map(([, key]) => key);
+    expect(keys.sort()).toEqual([
+      'allowBuilds',
+      'minimumReleaseAge',
+      'minimumReleaseAgeExclude',
+      'minimumReleaseAgeStrict',
+      'overrides',
+    ]);
+    expect(workspace).toMatch(/^minimumReleaseAgeStrict: true$/m);
+  });
+
+  it('aucun autre canal de configuration de pnpm ou de Corepack', () => {
+    expect(existsSync(join(REPO_ROOT, '.npmrc'))).toBe(false);
+    expect(Object.keys(packageJson)).not.toContain('pnpm');
+    const dir = join(REPO_ROOT, '.github/workflows');
+    for (const file of existsSync(dir) ? readdirSync(dir) : []) {
+      expect(readFileSync(join(dir, file), 'utf8'), file).not.toMatch(/pnpm_config_|npm_config_|COREPACK_/i);
+    }
+  });
+
+  it('aucun lien symbolique sous .claude/ (skills de dépendances liées par pnpm, SEC-04)', () => {
+    const links = readdirSync(join(REPO_ROOT, '.claude'), { withFileTypes: true, recursive: true })
+      .filter((entry) => entry.isSymbolicLink() && !entry.parentPath.includes(`${join('.claude', 'worktrees')}`))
+      .map((entry) => join(entry.parentPath, entry.name));
+    expect(links).toEqual([]);
   });
 
   it('minimumReleaseAge d au moins 7 jours, exceptions limitées à des versions exactes', () => {
