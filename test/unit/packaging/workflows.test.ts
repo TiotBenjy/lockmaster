@@ -64,7 +64,9 @@ describe('workflows GitHub (SEC-24)', () => {
   const WRITES: Record<string, string[]> = { 'codeql.yml': ['security-events'], 'release.yml': ['packages'] };
   it.each(workflows)('$file : droits en écriture limités à la liste blanche', ({ file, text }) => {
     expect(text).not.toMatch(/write-all/);
-    const writes = [...text.matchAll(/^\s+([a-z-]+): write$/gm)].map(([, scope]) => scope);
+    // Forme en ligne refusée : seules les permissions écrites une par ligne sont analysées.
+    expect(text).not.toMatch(/permissions:\s*\{/);
+    const writes = [...text.matchAll(/^\s+([a-z-]+): write(?:\s+#.*)?$/gm)].map(([, scope]) => scope);
     expect([...new Set(writes)].sort()).toEqual(WRITES[file] ?? []);
   });
 
