@@ -41,6 +41,25 @@ check_root_owned() {
     fi
   done
 }
+
+# Home du compte rsync, créé SEULEMENT s'il n'existe pas : .ssh et authorized_keys à root, lisibles
+# par le seul groupe du compte (il ne peut pas s'ajouter de clé). Un home existant (préparé à la main,
+# éventuellement au compte) n'est jamais modifié en root : ses droits sont seulement vérifiés.
+create_sync_home() { # $1 home, $2 groupe du compte, $3 racine du dépôt, $4 chemin de rrsync
+  mkdir -p "$(dirname "$1")"
+  if ! mkdir -m 0700 "$1" 2>/dev/null; then
+    check_root_owned "$1" "$1/.ssh" "$1/.ssh/authorized_keys"
+    return 0
+  fi
+  install -d -m 0750 -g "$2" "$1/.ssh"
+  {
+    echo "# Clés de publication de lockmaster (cible rsync), une par ligne, toujours avec la restriction :"
+    echo "# command=\"${4:-rrsync} $3\",restrict ssh-ed25519 AAAA... lockmaster@hote-application"
+  } >"$1/.ssh/authorized_keys"
+  chgrp "$2" "$1/.ssh/authorized_keys" "$1"
+  chmod 0640 "$1/.ssh/authorized_keys"
+  chmod 0750 "$1"
+}
 # <<< fonctions
 
 case "${1-}" in
@@ -66,8 +85,7 @@ if id -u lockmaster >/dev/null 2>&1; then
 fi
 create_repo_tree "$root" "$owner" lockmaster-repo
 
-# Compte rsync : home et authorized_keys à root (le compte ne peut pas ajouter de clé), lisibles
-# par son seul groupe. Chaque clé doit être restreinte par rrsync à la racine du dépôt.
+# Compte rsync : chaque clé doit être restreinte par rrsync à la racine du dépôt.
 rrsync=
 for candidate in /usr/bin/rrsync /usr/share/rsync/scripts/rrsync /usr/libexec/rsync/rrsync; do
   if [ -x "$candidate" ]; then
@@ -75,17 +93,7 @@ for candidate in /usr/bin/rrsync /usr/share/rsync/scripts/rrsync /usr/libexec/rs
     break
   fi
 done
-[ -e "$home" ] || install -d -m 0750 -o root -g lockmaster-sync "$home"
-[ -e "$home/.ssh" ] || install -d -m 0750 -o root -g lockmaster-sync "$home/.ssh"
-if [ ! -e "$home/.ssh/authorized_keys" ] && [ ! -L "$home/.ssh/authorized_keys" ]; then
-  {
-    echo "# Clés de publication de lockmaster (cible rsync), une par ligne, toujours avec la restriction :"
-    echo "# command=\"${rrsync:-rrsync} $root\",restrict ssh-ed25519 AAAA... lockmaster@hote-application"
-  } >"$home/.ssh/authorized_keys"
-  chown root:lockmaster-sync "$home/.ssh/authorized_keys"
-  chmod 0640 "$home/.ssh/authorized_keys"
-fi
-check_root_owned "$home" "$home/.ssh" "$home/.ssh/authorized_keys"
+create_sync_home "$home" lockmaster-sync "$root" "$rrsync"
 [ -n "$rrsync" ] || warn "rrsync introuvable : la cible rsync ne fonctionnera pas sans lui (voir docs/08 §2.2)"
 
 # Barrière contre les liens symboliques (docs/02) : rien de lockmaster ne doit être lisible par nginx.
@@ -103,7 +111,8 @@ done
 if command -v semanage >/dev/null 2>&1; then
   if semanage fcontext -a -t httpd_sys_content_t "$root(/.*)?" 2>/dev/null ||
     semanage fcontext -m -t httpd_sys_content_t "$root(/.*)?"; then
-    restorecon -R "$root" || warn "restorecon a échoué sur $root"
+    # Première installation seulement : ensuite, l'arborescence appartient au publieur.
+    [ -z "$first" ] || restorecon -R "$root" || warn "restorecon a échoué sur $root"
   else
     warn "contexte SELinux non posé : semanage fcontext -a -t httpd_sys_content_t '$root(/.*)?'"
   fi

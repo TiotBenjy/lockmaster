@@ -141,8 +141,15 @@ describe('SEC-24 : pnpm', () => {
 
   it('minimumReleaseAge d au moins 7 jours, exceptions limitées à des versions exactes', () => {
     expect(Number(/^minimumReleaseAge: (\d+)$/m.exec(workspace)?.[1])).toBeGreaterThanOrEqual(10_080);
-    const excluded = /^minimumReleaseAgeExclude:\n((?: {2}- .+\n)*)/m.exec(workspace)?.[1] ?? '';
-    for (const line of excluded.split('\n').filter(Boolean)) {
+    // Toute mention de la clé doit être une liste en bloc, non vide, de versions exactes : une autre
+    // forme (liste en ligne, nom sans version, commentaire intercalé) échoue ici.
+    const mentions = workspace.match(/^\s*minimumReleaseAgeExclude\b.*$/gm) ?? [];
+    const excluded = /^minimumReleaseAgeExclude:\n((?: {2}- .+\n)+)/m.exec(workspace)?.[1];
+    if (mentions.length > 0) {
+      expect(mentions).toEqual(['minimumReleaseAgeExclude:']);
+      expect(excluded).toBeDefined();
+    }
+    for (const line of (excluded ?? '').split('\n').filter(Boolean)) {
       expect(line).toMatch(/^ {2}- [@a-z0-9./-]+@\d+\.\d+\.\d+( \|\| \d+\.\d+\.\d+)*$/);
     }
   });
