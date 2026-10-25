@@ -81,7 +81,7 @@ accessibilité), `@phosphor-icons/core` (source des icônes, extraites au build)
 
 ```bash
 pnpm install --frozen-lockfile   # installer (jamais sans lockfile en CI)
-pnpm dev:init                    # une fois : ./lockmaster.dev.toml + ./.data (clé maîtresse de dev, admin dev)
+pnpm dev:init                    # une fois : ./lockmaster.dev.toml + ./.data + ./.data-keys (clé maîtresse de dev)
 pnpm dev                         # tsx watch src/main.ts serve --config lockmaster.dev.toml
 pnpm check                       # biome check . && tsc --noEmit  (doit passer avant tout commit)
 pnpm test                        # vitest run --project unit --project integration

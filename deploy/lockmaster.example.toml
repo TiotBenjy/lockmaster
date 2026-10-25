@@ -2,7 +2,8 @@
 #
 # Emplacement : `--config <fichier>` > variable LOCKMASTER_CONFIG > /etc/lockmaster/lockmaster.toml.
 # En développement (`pnpm dev`), le fichier ./lockmaster.dev.toml (généré par `pnpm dev:init`,
-# ignoré par git) est utilisé, avec data_dir = ./.data et une clé maîtresse de dev dans ./.data/.
+# ignoré par git) est utilisé, avec data_dir = ./.data et une clé maîtresse de dev dans ./.data-keys/
+# (jamais sous data_dir : lockmaster refuse une clé maîtresse située dans le dossier de données).
 #
 # Règles :
 #  - Une seule source de configuration : ce fichier, surchargeable clé par clé par des variables

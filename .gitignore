@@ -7,6 +7,9 @@ coverage/
 
 # Données locales de développement (base, blobs, clés générées)
 .data/
+.data-keys/
+.data-repo/
+.data-signer/
 
 # Secrets : ne jamais committer
 .env
