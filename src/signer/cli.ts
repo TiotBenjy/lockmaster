@@ -36,9 +36,14 @@ const USAGE = `Usage : lockmaster signer <commande> [--config <fichier>]
 const CONFIG_ERROR = /^(CONFIG_|PATH_|NOT_INITIALIZED$|SECRET_FILE_|MASTER_KEY_|SIGNER_SOCKET_|SIGNER_ACTIVATION_)/;
 const SHUTDOWN_TIMEOUT_MS = 8_000;
 
-function loadConfig(runtime: SignerCliRuntime, cliPath: string | undefined): SignerConfig {
+function loadConfig(runtime: SignerCliRuntime, cliPath: string | undefined, socket: string | undefined): SignerConfig {
   const { path, explicit } = resolveSignerConfigPath(cliPath, runtime.env);
-  return loadSignerConfig({ path, env: runtime.env, explicit });
+  return loadSignerConfig({
+    path,
+    env: runtime.env,
+    explicit,
+    ...(socket === undefined ? {} : { socketPath: socket }),
+  });
 }
 
 async function serve(runtime: SignerCliRuntime, config: SignerConfig, activation: boolean): Promise<number> {
@@ -81,8 +86,7 @@ export async function runSignerCli(argv: readonly string[], runtime: SignerCliRu
     return EXIT.NO_PERMISSION;
   }
   try {
-    const config = loadConfig(runtime, values.config);
-    if (values.socket) config.socket.path = values.socket;
+    const config = loadConfig(runtime, values.config, values.socket);
     if (command === 'init') {
       runtime.stdout.write(`${initSigner(config).join('\n')}\nSignataire initialisé.\n`);
       return EXIT.OK;

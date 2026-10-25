@@ -1,7 +1,8 @@
-import { existsSync } from 'node:fs';
+import { existsSync, lstatSync } from 'node:fs';
 import { createServer, type Socket } from 'node:net';
+import { dirname } from 'node:path';
 import type { DestinationStream } from 'pino';
-import { readSecretFile } from '../config/secret-file.js';
+import { defaultAllowedGids, readSecretFile } from '../config/secret-file.js';
 import { parseMasterKey } from '../crypto/master-key.js';
 import { LockmasterError } from '../domain/errors.js';
 import { encodeFrame, FrameReader, parseRequest, type SignerRequest } from '../domain/signer-protocol.js';
@@ -14,7 +15,9 @@ import { isSignerDatabase, openSignerDatabase, signerDatabasePath } from './stor
 // Chaque refus est journalisé (event signer.request_refused). Au jalon M0, seule `ping` existe.
 
 const RUN_INIT = 'exécuter lockmaster signer init';
-const MAX_CONNECTIONS = 64;
+// Peu de clients légitimes (l'application) : 8 connexions bornent aussi la mémoire (8 x 16 Mio).
+const MAX_CONNECTIONS = 8;
+const CLOSE_GRACE_MS = 1_000;
 
 export interface SignerStartOptions {
   /** Descripteur transmis par systemd (activation par socket) ; sinon écoute sur socket.path. */
@@ -31,10 +34,26 @@ function notInitialized(reason: string): LockmasterError {
   return new LockmasterError('NOT_INITIALIZED', `${reason} : ${RUN_INIT}`);
 }
 
+/**
+ * Groupes admis pour une clé lisible par le groupe : root et le groupe principal du signataire, SAUF
+ * le groupe du socket (lockmaster-sign), partagé avec l'application. En compose, le groupe principal
+ * du signataire est justement ce groupe : la clé doit alors être en 0400.
+ */
+export function keyGroups(config: SignerConfig): number[] {
+  const own = defaultAllowedGids();
+  let socketGroup: number | undefined;
+  try {
+    socketGroup = lstatSync(dirname(config.socket.path)).gid;
+  } catch {
+    socketGroup = undefined;
+  }
+  return own.filter((gid) => gid === 0 || gid !== socketGroup);
+}
+
 function preflight(config: SignerConfig) {
   const keyFile = config.security.master_key_file;
   if (!existsSync(keyFile)) throw notInitialized(`clé maîtresse du signataire absente (${keyFile})`);
-  parseMasterKey(readSecretFile(keyFile));
+  parseMasterKey(readSecretFile(keyFile, { allowedGids: keyGroups(config) }));
   const path = signerDatabasePath(config.server.data_dir);
   if (!existsSync(path)) throw notInitialized(`base du signataire absente (${path})`);
   const db = openSignerDatabase(path, { create: false });
@@ -60,16 +79,16 @@ function serveConnection(socket: Socket, logger: Logger, timeoutMs: number): voi
     finished = true;
     clearTimeout(timer);
     socket.end(encodeFrame(response));
+    // Un client qui garde son côté ouvert ne doit pas occuper un emplacement indéfiniment.
+    setTimeout(() => socket.destroy(), CLOSE_GRACE_MS).unref();
   };
   const refuse = (code: string, message: string) => {
     logger.warn({ event: 'signer.request_refused', code }, 'request refused');
     finish({ ok: false, error: { code, message } });
   };
   const timer = setTimeout(() => refuse('SIGNER_TIMEOUT', 'délai de requête dépassé'), timeoutMs);
-  socket.on('error', () => {
-    clearTimeout(timer);
-    socket.destroy();
-  });
+  socket.on('close', () => clearTimeout(timer));
+  socket.on('error', () => socket.destroy());
   socket.on('data', (chunk: Buffer) => {
     if (finished) return;
     try {
@@ -88,8 +107,14 @@ function serveConnection(socket: Socket, logger: Logger, timeoutMs: number): voi
 export async function startSigner(config: SignerConfig, options: SignerStartOptions = {}): Promise<RunningSigner> {
   const db = preflight(config);
   const logger = createLogger(config.log, options.logDestination);
-  const server = createServer((socket) => serveConnection(socket, logger, config.socket.timeout));
+  const connections = new Set<Socket>();
+  const server = createServer((socket) => {
+    connections.add(socket);
+    socket.on('close', () => connections.delete(socket));
+    serveConnection(socket, logger, config.socket.timeout);
+  });
   server.maxConnections = MAX_CONNECTIONS;
+  server.on('drop', () => logger.warn({ event: 'signer.connection_dropped' }, 'connection limit reached'));
   try {
     if (options.fd === undefined) await listenOnPath(server, config.socket.path);
     else await listenOnFd(server, options.fd);
@@ -101,7 +126,9 @@ export async function startSigner(config: SignerConfig, options: SignerStartOpti
   return {
     logger,
     stop: async () => {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+      for (const socket of connections) socket.destroy();
+      await closed;
       db.close();
     },
   };

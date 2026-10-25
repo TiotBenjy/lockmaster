@@ -51,6 +51,16 @@ module.exports = {
       to: { path: '^src/(net|http|db|web|publish|pipeline|auth|jobs|upstream|scan|storage|signer-client)/' },
     },
     {
+      name: 'signer-isolated-transitive',
+      severity: 'error',
+      comment: 'ADR-0009 : même règle à travers les modules partagés (config, log...) que le signataire importe.',
+      from: { path: '^src/signer/' },
+      to: {
+        path: '^src/(net|http|db|web|publish|pipeline|auth|jobs|upstream|scan|storage|signer-client)/',
+        reachable: true,
+      },
+    },
+    {
       name: 'signer-no-network-api',
       severity: 'error',
       comment: 'ADR-0009 : aucune API réseau dans le signataire (socket Unix par node:net seulement).',
