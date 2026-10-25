@@ -57,7 +57,7 @@ function registerProbes(app: FastifyInstance, checks: ReadonlyArray<() => boolea
       try {
         return check();
       } catch (error) {
-        request.log.warn({ event: 'http.readiness_check_failed', err: error }, 'vérification /readyz en échec');
+        request.log.warn({ event: 'http.readiness_check_failed', err: error }, 'readiness check failed');
         return false;
       }
     });

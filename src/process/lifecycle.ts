@@ -22,7 +22,7 @@ export function installProcessHandlers(options: ProcessHandlersOptions): void {
   let stopping = false;
 
   const crash = (kind: string) => (error: unknown) => {
-    logger.fatal({ event: 'process.uncaught', kind, err: error }, 'erreur non gérée : arrêt immédiat');
+    logger.fatal({ event: 'process.uncaught', kind, err: error }, 'unhandled error, exiting now');
     exit(EXIT_SOFTWARE);
   };
   proc.on('uncaughtException', crash('exception'));
@@ -31,9 +31,9 @@ export function installProcessHandlers(options: ProcessHandlersOptions): void {
   const shutdown = (signal: string) => {
     if (stopping) return;
     stopping = true;
-    logger.info({ event: 'process.shutdown', signal }, 'arrêt demandé');
+    logger.info({ event: 'process.shutdown', signal }, 'shutdown requested');
     const timer = setTimeout(() => {
-      logger.error({ event: 'process.shutdown_timeout', signal }, "délai d'arrêt dépassé");
+      logger.error({ event: 'process.shutdown_timeout', signal }, 'shutdown timed out');
       exit(1);
     }, options.shutdownTimeoutMs);
     timer.unref?.();
@@ -44,7 +44,7 @@ export function installProcessHandlers(options: ProcessHandlersOptions): void {
       },
       (error: unknown) => {
         clearTimeout(timer);
-        logger.error({ event: 'process.shutdown_failed', err: error }, 'arrêt propre impossible');
+        logger.error({ event: 'process.shutdown_failed', err: error }, 'graceful shutdown failed');
         exit(1);
       },
     );
