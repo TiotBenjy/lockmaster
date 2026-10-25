@@ -77,8 +77,9 @@ Les noms/versions/arch suivent des regex strictes par format avant tout usage.
 | Webhooks sortants | HMAC-SHA256 `X-Lockmaster-Signature: t=<ts>,v1=<hex>` (anti-rejeu par horodatage) |
 
 **Deux clés maîtresses** (ADR-0009) : celle de l'application (secrets tiers, TOTP, identifiants)
-et celle du signataire (clés de signature), chacune lisible par un seul compte. La clé maîtresse de l'application vient d'un fichier (`security.master_key_file` : `root:lockmaster` mode 0440 pour les
-paquets ; secret de conteneur lisible par l'UID 10001) ; Lockmaster refuse de démarrer si elle manque,
+et celle du signataire (clés de signature), chacune lisible par un seul compte. La clé maîtresse de l'application vient d'un fichier (`security.master_key_file` : pour les
+paquets, `root:root` 0400 transmise au service par `LoadCredential=`, chiffrable par
+`LoadCredentialEncrypted=` (SEC-29, ADR-0012) ; secret de conteneur lisible par l'UID 10001) ; Lockmaster refuse de démarrer si elle manque,
 est trop courte, est lisible par `others`, ou se trouve sous `data_dir`.
 Rotation : `lockmaster keys rotate-master --new <fichier>` rechiffre tout en une transaction.
 

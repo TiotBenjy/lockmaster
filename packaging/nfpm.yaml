@@ -1,0 +1,75 @@
+# Paquets .deb et .rpm de l'application lockmaster (ADR-0007), produits par packaging/package.sh :
+# ce script prépare out/stage/ (bundles, Node.js et Grype vérifiés par SHA-256, lanceur) et fixe
+# LOCKMASTER_VERSION et LOCKMASTER_ARCH (amd64 ou arm64, traduits par nfpm pour le .rpm).
+# Arborescence : /usr/lib/lockmaster/{node/bin/node, bin/lockmaster, bin/grype, lockmaster.mjs,
+# lockmaster-signer.mjs, node_modules/better-sqlite3, static}, même disposition que /app dans l'image (ADR-0013).
+name: lockmaster
+arch: ${LOCKMASTER_ARCH}
+platform: linux
+version: ${LOCKMASTER_VERSION}
+release: 1
+section: admin
+priority: optional
+maintainer: TiotBenjy (https://github.com/TiotBenjy/lockmaster)
+vendor: lockmaster
+homepage: https://github.com/TiotBenjy/lockmaster
+license: MIT
+description: |-
+  Gestionnaire de dépôts APT, RPM et APK privés avec analyse de sécurité.
+  Application (API, interface d'administration, analyses, publication) et service de signature
+  séparé. Les dépôts sont servis par nginx (paquet lockmaster-repo).
+
+depends: [rsync, systemd]
+overrides:
+  deb:
+    depends: [rsync, openssh-client, systemd]
+    recommends: [clamav-daemon]
+  rpm:
+    depends: [rsync, openssh-clients, systemd]
+    recommends: [clamd]
+
+contents:
+  - src: ./out/stage/root/
+    dst: /usr/lib/lockmaster
+    type: tree
+  - src: /usr/lib/lockmaster/bin/lockmaster
+    dst: /usr/bin/lockmaster
+    type: symlink
+
+  - src: ./packaging/systemd/lockmaster.service
+    dst: /usr/lib/systemd/system/lockmaster.service
+  - src: ./packaging/systemd/lockmaster-signer.socket
+    dst: /usr/lib/systemd/system/lockmaster-signer.socket
+  - src: ./packaging/systemd/lockmaster-signer.service
+    dst: /usr/lib/systemd/system/lockmaster-signer.service
+  - src: ./packaging/sysusers/lockmaster.conf
+    dst: /usr/lib/sysusers.d/lockmaster.conf
+  - src: ./packaging/tmpfiles/lockmaster.conf
+    dst: /usr/lib/tmpfiles.d/lockmaster.conf
+
+  # Livrés en root:root (les groupes n'existent pas encore au dépaquetage) : le postinstall pose
+  # root:lockmaster et root:lockmaster-signer.
+  - dst: /etc/lockmaster
+    type: dir
+    file_info: { mode: 0750 }
+  - src: ./deploy/lockmaster.example.toml
+    dst: /etc/lockmaster/lockmaster.toml
+    type: config|noreplace
+    file_info: { mode: 0640 }
+  - dst: /etc/lockmaster-signer
+    type: dir
+    file_info: { mode: 0750 }
+  - src: ./deploy/signer.example.toml
+    dst: /etc/lockmaster-signer/signer.toml
+    type: config|noreplace
+    file_info: { mode: 0640 }
+
+  # Licences (dont Node.js et Grype), documentation citée par les unités, exemple LoadCredentialEncrypted.
+  - src: ./out/stage/doc/
+    dst: /usr/share/doc/lockmaster
+    type: tree
+
+scripts:
+  postinstall: ./packaging/scripts/postinstall.sh
+  preremove: ./packaging/scripts/preremove.sh
+  postremove: ./packaging/scripts/postremove.sh

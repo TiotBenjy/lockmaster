@@ -52,8 +52,20 @@ describe('règles de couches (dependency-cruiser)', () => {
       },
     ],
     [
+      'only-signer-imports-signer',
+      { 'src/main.ts': "import { x } from './signer/b.js';\nexport const a = x;\n", 'src/signer/b.ts': exporting },
+    ],
+    [
       'signer-isolated',
       { 'src/signer/a.ts': "import { x } from '../db/b.js';\nexport const a = x;\n", 'src/db/b.ts': exporting },
+    ],
+    [
+      'signer-isolated-transitive',
+      {
+        'src/signer/a.ts': "import { x } from '../config/b.js';\nexport const a = x;\n",
+        'src/config/b.ts': "import { y } from '../net/c.js';\nexport const x = y;\n",
+        'src/net/c.ts': 'export const y = 1;\n',
+      },
     ],
     ['signer-no-network-api', { 'src/signer/a.ts': "import http from 'node:http';\nexport const a = http;\n" }],
     [
