@@ -169,7 +169,12 @@ describe('parseTar', () => {
   it('refuse un nom ustar tronqué non canonique que prolonge un chemin étendu', () => {
     const padded = `${'./'.repeat(46)}postinst`;
     expect(Buffer.byteLength(padded)).toBe(100);
-    for (const ustar of [padded, `./${'a/'.repeat(10)}/${'b'.repeat(77)}`, `./${'a/./'.repeat(5)}${'c'.repeat(78)}`]) {
+    for (const ustar of [
+      padded,
+      `${'a'.repeat(97)}/..`,
+      `./${'a/'.repeat(10)}/${'b'.repeat(77)}`,
+      `./${'a/./'.repeat(5)}${'c'.repeat(78)}`,
+    ]) {
       const archive = buildTar([
         { path: 'P', type: 'x', data: paxRecords({ path: `${ustar}.dpkg-new` }) },
         { path: ustar, data: 'x' },
