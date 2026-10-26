@@ -10,7 +10,13 @@ const SCRIPT = 'echo MARQUEUR-SEC01';
 describePackageFormatContract(rpmFormat, () => ({
   plain: buildRpm(),
   expected: { name: 'hello', version: '2.10-3.el9', arch: 'x86_64' },
-  withScript: buildRpm({ tags: [{ tag: 1024, type: TYPE.STRING, value: SCRIPT }] }),
+  // POSTINPROG en STRING : forme écrite par rpmbuild pour un interpréteur sans argument.
+  withScript: buildRpm({
+    tags: [
+      { tag: 1024, type: TYPE.STRING, value: SCRIPT },
+      { tag: 1086, type: TYPE.STRING, value: '/bin/sh' },
+    ],
+  }),
   script: '%post',
   marker: 'MARQUEUR-SEC01',
   versions: ['1.0~rc1-1', '1:0.1-1'],
@@ -219,6 +225,20 @@ describe('rpmInnerStreams (SEC-01)', () => {
       expect(seen[0]?.[1]).toContain('MARQUEUR-SEC01');
       expect(seen[1]?.[1]).toContain('echo bonjour');
       expect(seen[1]?.[1].startsWith('070701')).toBe(true);
+    }
+  });
+
+  it('lit sans PAYLOADCOMPRESSOR un payload gzip ou non compressé, comme gzdio (lib/rpmte.c, zlib)', async () => {
+    // rpmbuild n'écrit pas le tag pour `_binary_payload w0.ufdio` ; rpm lit alors en « gzip » par zlib,
+    // qui laisse passer un flux sans la magie gzip.
+    for (const compression of ['gzip', 'none'] as const) {
+      const rpm = buildRpm({ compression, compressorName: null });
+      const payload: Uint8Array[] = [];
+      for await (const stream of rpmFormat.innerStreams(new BufferSource(rpm), options)) {
+        if (stream.name !== 'payload.cpio') continue;
+        for await (const chunk of stream.data) payload.push(chunk);
+      }
+      expect(Buffer.concat(payload).toString('latin1').startsWith('070701')).toBe(true);
     }
   });
 

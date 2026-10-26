@@ -3,7 +3,7 @@
 // contient les scriptlets, puis le payload cpio décompressé. Le payload n'est jamais extrait.
 
 import type { ParsedPackage } from '../../domain/package.js';
-import { decompress } from '../common/decompress.js';
+import { type Compression, decompress } from '../common/decompress.js';
 import { computeDigestsWithTail } from '../common/digests.js';
 import { FormatError } from '../common/errors.js';
 import { decompressionBudget } from '../common/limits.js';
@@ -41,6 +41,15 @@ function checkPayloadDigest(expected: readonly string[], algorithms: readonly nu
   }
 }
 
+/**
+ * Sans PAYLOADCOMPRESSOR, rpm lit le payload en « gzip » (lib/rpmte.c) par zlib, qui laisse passer un
+ * flux sans la magie gzip (gzread, mode transparent) : gzip si la magie est présente, sinon aucune.
+ */
+async function sniffGzip(source: ByteSource, offset: number, options: ParseOptions): Promise<Compression> {
+  const magic = await source.read(offset, Math.min(2, source.size - offset), options.signal);
+  return magic[0] === 0x1f && magic[1] === 0x8b ? 'gzip' : 'none';
+}
+
 export async function* rpmInnerStreams(source: ByteSource, options: ParseOptions): AsyncGenerator<InnerStream> {
   const layout = await readRpmLayout(source, options);
   const { compression } = readRpmMetadata(layout.header, options.limits);
@@ -48,11 +57,15 @@ export async function* rpmInnerStreams(source: ByteSource, options: ParseOptions
   const size = source.size - layout.headerEnd;
   yield {
     name: 'payload.cpio',
-    data: decompress(source.stream(layout.headerEnd, size, options.signal), compression, {
-      maxOutputBytes: decompressionBudget(options.limits, size, Number.POSITIVE_INFINITY),
-      limits: options.limits,
-      signal: options.signal,
-    }),
+    data: decompress(
+      source.stream(layout.headerEnd, size, options.signal),
+      compression ?? (await sniffGzip(source, layout.headerEnd, options)),
+      {
+        maxOutputBytes: decompressionBudget(options.limits, size, Number.POSITIVE_INFINITY),
+        limits: options.limits,
+        signal: options.signal,
+      },
+    ),
   };
 }
 

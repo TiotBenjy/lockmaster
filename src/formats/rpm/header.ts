@@ -90,8 +90,17 @@ export function parseRpmHeader(bytes: Uint8Array, kind: HeaderKind, limits: Form
     end = entry.offset + entryLength;
     if (end > dl) throw invalid('données hors limites');
     if (end > rdl - ENTRY_BYTES && entry.offset < rdl) throw invalid('données sur le trailer de région');
-    if (entries.has(entry.tag)) throw invalid('tag en double');
     const value = data.subarray(entry.offset, end);
+    // rpm lit l'une ou l'autre entrée d'un tag répété (bsearch sur un tri instable, findEntry) : seule
+    // une répétition identique (type, nombre, octets) est sans ambiguïté. rpmbuild 4.19.1.1 de Rocky 10
+    // écrit ainsi SOURCERPM deux fois.
+    const previous = entries.get(entry.tag);
+    if (previous !== undefined) {
+      const same =
+        previous.type === entry.type && previous.count === entry.count && Buffer.from(previous.data).equals(value);
+      if (!same) throw invalid(`tag ${entry.tag} répété avec une autre valeur`);
+      continue;
+    }
     const strings = STRING_CLASS.has(entry.type) ? decode(value).split('\0').slice(0, entry.count) : [];
     entries.set(entry.tag, { type: entry.type, count: entry.count, data: value, strings });
   }
@@ -135,10 +144,15 @@ function checkEntry(entry: Info, dl: number, kind: HeaderKind): void {
   if (entry.offset < 0 || entry.offset > dl) throw invalid('décalage hors limites');
   if (entry.type !== RPM_TYPE.BIN && entry.count > ARRAY_MAX) throw invalid('tableau trop grand');
   // rpm tolère un autre type de la classe chaîne (hdrchkTagType), mais lit alors une traduction choisie
-  // selon la locale du client (copyI18NEntry) : type exact exigé, sauf STRING pour un tag traduit.
+  // selon la locale du client (copyI18NEntry) : type exact exigé, sauf STRING (un seul élément, lu de
+  // la même façon partout) pour un tag traduit ou un tableau. rpmbuild écrit d'ailleurs un *PROG en
+  // STRING quand l'interpréteur n'a pas d'argument (build/parseScript.c, « legacy compat »).
   const expected = kind === 'main' ? MAIN_TYPES.get(entry.tag) : undefined;
-  const tolerated = expected === RPM_TYPE.I18NSTRING && entry.type === RPM_TYPE.STRING;
-  if (expected !== undefined && expected !== entry.type && !tolerated) throw invalid('tag au mauvais type');
+  const tolerated =
+    entry.type === RPM_TYPE.STRING && (expected === RPM_TYPE.I18NSTRING || expected === RPM_TYPE.STRING_ARRAY);
+  if (expected !== undefined && expected !== entry.type && !tolerated) {
+    throw invalid(`tag ${entry.tag} de type ${entry.type} au lieu de ${expected}`);
+  }
   if (entry.type === RPM_TYPE.I18NSTRING && entry.count !== 1) throw invalid('chaîne traduite en plusieurs langues');
   if (entry.tag === REGION.I18NTABLE && (entry.type !== RPM_TYPE.STRING_ARRAY || entry.count !== 1)) {
     throw invalid('table de traductions');
@@ -164,14 +178,14 @@ function accessors(bytes: Uint8Array, entries: ReadonlyMap<number, Entry>): RpmH
   const numbers = (tag: number, type: number, size: number): number[] => {
     const entry = entries.get(tag);
     if (entry === undefined) return [];
-    if (entry.type !== type) throw invalid('tag au mauvais type');
+    if (entry.type !== type) throw invalid(`tag ${tag} de type ${entry.type} au lieu de ${type}`);
     const view = new DataView(entry.data.buffer, entry.data.byteOffset, entry.data.byteLength);
     return Array.from({ length: entry.count }, (_, index) => readNumber(view, index * size, size));
   };
   const strings = (tag: number, types: readonly number[]): string[] => {
     const entry = entries.get(tag);
     if (entry === undefined) return [];
-    if (!types.includes(entry.type)) throw invalid('tag au mauvais type');
+    if (!types.includes(entry.type)) throw invalid(`tag ${tag} de type ${entry.type} au lieu de ${types.join(' ou ')}`);
     return [...entry.strings];
   };
   return {
@@ -179,7 +193,7 @@ function accessors(bytes: Uint8Array, entries: ReadonlyMap<number, Entry>): RpmH
     byteLength: bytes.length,
     has: (tag) => entries.has(tag),
     string: (tag) => strings(tag, [RPM_TYPE.STRING, RPM_TYPE.I18NSTRING])[0],
-    strings: (tag) => strings(tag, [RPM_TYPE.STRING_ARRAY]),
+    strings: (tag) => strings(tag, [RPM_TYPE.STRING_ARRAY, RPM_TYPE.STRING]),
     uint16: (tag) => numbers(tag, RPM_TYPE.INT16, 2),
     uint32: (tag) => numbers(tag, RPM_TYPE.INT32, 4),
     uint64: (tag) => numbers(tag, RPM_TYPE.INT64, 8),
