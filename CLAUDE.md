@@ -44,7 +44,7 @@ Lis le document du domaine **avant** de modifier ce domaine. Si une décision ch
 Node.js 24 LTS · TypeScript strict (ESM) · Fastify 5 · zod · SQLite (`better-sqlite3`) + Kysely ·
 Preact + `preact-render-to-string` (TSX côté serveur) + htmx + Alpine.js (build CSP) · OpenPGP.js · `node:crypto` ·
 `node:zlib` (gzip/zstd) · xz, bzip2 et tar écrits dans `src/formats/common/` (ADR-0015) · `openid-client` · `croner` · pino.
-Tests : vitest, fast-check, testcontainers. Lint/format : Biome. Paquets : pnpm 12 (ADR-0014).
+Tests : vitest, fast-check, conteneurs e2e pilotés par la CLI Podman ou Docker (ADR-0016). Lint/format : Biome. Paquets : pnpm 12 (ADR-0014).
 Livraison : `.deb`/`.rpm` via nfpm, image OCI (Docker et Podman) pour l'application ; paquet
 `lockmaster-repo` (.deb/.rpm sans code : config nginx, répertoires, compte rsync restreint) et image
 nginx officielle non-root pour le serveur de dépôt. Scanners : clamd + Grype.
@@ -73,7 +73,7 @@ Bibliothèques déjà choisies (ne pas en ajouter d'équivalentes) : `fastify`, 
 `@alpinejs/csp` (Alpine.js **build CSP**, réactivité de l'UI, empaqueté avec nos composants par
 esbuild dans `static/app.js`). Le signataire n'utilise que `openpgp`, `node:crypto`,
 `better-sqlite3`, `zod`, `pino`, `smol-toml` (lecture de `signer.toml`) et les parseurs de `src/formats/`. Dev : `typescript`, `@biomejs/biome`, `vitest`, `@vitest/coverage-v8`,
-`fast-check`, `testcontainers`, `tsx`, `esbuild`, `dependency-cruiser` (règles de couches), `happy-dom`
+`fast-check`, `tsx`, `esbuild`, `dependency-cruiser` (règles de couches), `happy-dom`
 (tests des composants Alpine), `@playwright/test` et `@axe-core/playwright` (parcours UI et
 accessibilité), `@phosphor-icons/core` (source des icônes, extraites au build). Décompression xz et bzip2 et lecture tar :
 sans bibliothèque, code maison dans `src/formats/common/` (ADR-0015).
@@ -87,7 +87,7 @@ pnpm dev                         # tsx watch src/main.ts serve --config lockmast
 pnpm check                       # biome check . && tsc --noEmit  (doit passer avant tout commit)
 pnpm test                        # vitest run --project unit --project integration
 pnpm test:fuzz                   # FC_NUM_RUNS=100000 vitest run --project fuzz
-pnpm test:e2e                    # vitest run --project e2e (testcontainers ; Docker ou Podman)
+pnpm test:e2e                    # vitest run --project e2e (CLI Podman, sinon Docker ; ADR-0016)
 pnpm build                       # node scripts/build.mjs -> dist/ (esbuild + better-sqlite3 + static)
 pnpm package                     # sh packaging/package.sh -> out/*.deb out/*.rpm (nfpm épinglé dans packaging/versions.env)
 pnpm image                       # sh packaging/image.sh -> podman build, ou docker build si podman absent

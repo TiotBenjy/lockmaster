@@ -48,7 +48,7 @@ Grype en sous-processus), parce que réimplémenter un antivirus ou une base CVE
 | OIDC | `openid-client` v6 | Bibliothèque de référence |
 | Planification | `croner` | Minuscule, sans dépendances |
 | Configuration | `smol-toml` + zod ; parseurs de durée et d'adresse écrits dans `src/config/` | Node n'a pas de parseur TOML |
-| Tests | **vitest**, `fast-check` (propriétés/fuzz), **testcontainers** (vrais clients apt/dnf/apk) | |
+| Tests | **vitest**, `fast-check` (propriétés/fuzz), conteneurs pilotés par la CLI Podman ou Docker (vrais clients apt/dnf/apk ; ADR-0016, à la place de testcontainers) | |
 | Lint/format | **Biome** + `tsc --noEmit` | Un seul outil |
 | Gestionnaire de paquets | **pnpm 10** (scripts d'installation bloqués par défaut, `minimumReleaseAge`) | Chaîne d'approvisionnement |
 

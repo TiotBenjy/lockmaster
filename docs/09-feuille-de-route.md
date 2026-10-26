@@ -214,7 +214,7 @@ non vérifiée, types inconnus sautés) restent refusés plutôt que reproduits.
 - [ ] Pool de `worker_threads` pour l'analyse des paquets (`resourceLimits`, échéance, recréation) ;
       test : bombe de décompression et paquet qui boucle -> worker terminé, paquet en `error`,
       application toujours disponible
-- [ ] Client clamd `zINSTREAM` (tests réels avec EICAR via testcontainers) ; fail-closed
+- [ ] Client clamd `zINSTREAM` (tests réels avec EICAR dans un conteneur clamav, ADR-0016) ; fail-closed
 - [ ] SBOM CycloneDX + client grype (`execFile`, timeout, zod sur la sortie) ; base locale
 - [ ] Flux KEV et EPSS (téléchargement, validation, swap atomique) ; job `feeds.refresh`
 - [ ] Moteur de politique pur + document par défaut + tables de cas ; décisions enregistrées
@@ -229,10 +229,12 @@ Exigences `docs/11` : SEC-03 (clés hors bande, `gpgkey=file://`, empreinte affi
 Reporté de M1 (revue du parseur rpm) : le parseur exige l'UTF-8 strict dans toutes les chaînes de
 l'en-tête (fail-closed) ; vérifier sur un corpus de vrais paquets Rocky 9 et 10 qu'aucun n'est refusé.
 
-Reporté de M1 (revue du parseur apk) : passer de vrais `.apk` Alpine 3.20+ au parseur et comparer
-`indexChecksum` au `C:` produit par `apk index`. L'APKINDEX se construit depuis une liste de clés
-autorisées, jamais par recopie de `control` ; `S:` vient de la taille réelle du fichier, et `size` de
-`.PKGINFO` (taille installée) va dans `I:`. `signatures.keyName` ne sert jamais à construire un chemin.
+Reporté de M1 (revue du parseur apk) : l'APKINDEX se construit depuis une liste de clés autorisées,
+jamais par recopie de `control` ; `S:` vient de la taille réelle du fichier, et `size` de `.PKGINFO`
+(taille installée) va dans `I:`. `signatures.keyName` ne sert jamais à construire un chemin. Déjà
+vérifié en M1 (`test/e2e/formats/packages.test.ts`) : sur de vrais `.apk` d'Alpine 3.20 et 3.22,
+`indexChecksum`, nom, version, architecture et taille égalent ceux d'`apk index`. Les paquets
+officiels sont signés en `.SIGN.RSA.` (SHA-1) : le mode `resign` doit les re-signer en RSA256.
 
 - [ ] `publish/rpm` : primary/filelists/other (+ zst optionnel), repomd, `.asc` ; e2e `dnf install`
       sur Rocky 9 et Rocky 10 avec `gpgcheck=1` et `repo_gpgcheck=1`
