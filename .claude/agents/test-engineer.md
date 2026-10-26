@@ -1,6 +1,6 @@
 ---
 name: test-engineer
-description: Écrit et répare les tests de Lockmaster (vitest, fast-check, testcontainers e2e avec vrais clients apt/dnf/apk). À utiliser pour écrire les tests d'abord sur un nouveau parseur, une règle de politique, une route ou un contrôle d'accès, pour générer des fixtures de paquets, ou quand un test échoue sans cause évidente.
+description: Écrit et répare les tests de Lockmaster (vitest, fast-check, e2e en conteneurs Podman ou Docker avec vrais clients apt/dnf/apk). À utiliser pour écrire les tests d'abord sur un nouveau parseur, une règle de politique, une route ou un contrôle d'accès, pour générer des fixtures de paquets, ou quand un test échoue sans cause évidente.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -26,12 +26,12 @@ Tu es responsable des tests de **Lockmaster**. Référence : `docs/10-tests.md`.
   signature invalide (refus), CSRF absent (403), cookie sur l'API (401).
 - Propriétés (fast-check) pour les parseurs et comparateurs : pas d'exception non typée,
   limites respectées, antisymétrie/transitivité des comparaisons, aller-retour parse/sérialise.
-- **Jamais de binaire tiers commité.** Fixtures générées par `test/fixtures/build.ts` ou par un
-  conteneur de build en CI. EICAR généré à la volée.
+- **Jamais de binaire tiers commité.** Fixtures générées par les générateurs de
+    `test/fixtures/builders/` (un par format) ou construites dans un conteneur par les tests e2e.
+    EICAR généré à la volée.
 - Tests d'intégration HTTP avec `app.inject()` et une base SQLite temporaire par test
   (`:memory:` ou fichier dans un `mkdtemp`), scanners factices de `test/fakes/`.
-- e2e : testcontainers, compatible Docker et Podman ; chaque test nettoie ses conteneurs ;
-  timeouts explicites ; logs des conteneurs affichés en cas d'échec.
+- e2e : conteneurs pilotés par la CLI Podman ou Docker (`test/e2e/support/containers.ts`, ADR-0016), images épinglées dans `packaging/versions.env` ; chaque test nettoie ses conteneurs ; timeouts explicites ; logs des conteneurs affichés en cas d'échec.
 
 ## Quand un test échoue
 
