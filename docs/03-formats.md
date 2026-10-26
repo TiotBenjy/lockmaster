@@ -25,18 +25,26 @@ Spécifications de référence (à consulter, ne pas deviner) :
 
 ## 1. Concepts communs
 
+Type défini dans `src/domain/package.ts`, produit par chaque implémentation de `PackageFormat`
+(`src/formats/package-format.ts` : `parse`, `innerStreams` pour l'antivirus, `compareVersions`) :
+
 ```ts
-type Format = 'deb' | 'rpm' | 'apk';
+type PackageFormatName = 'deb' | 'rpm' | 'apk';
+type VersionOperator = 'lt' | 'le' | 'eq' | 'ge' | 'gt';  // normalisé depuis << <= = >= >>, LT..., < ...
+interface Relation { name: string; operator?: VersionOperator; version?: string; qualifier?: string }
+type RelationGroup = Relation[];  // alternatives : une seule suffit
 
 interface ParsedPackage {
-  format: Format;
+  format: PackageFormatName;
   name: string;          // validé par regex de format
-  version: string;       // version complète normalisée (epoch:version-release)
+  version: string;       // version complète telle qu'écrite, validée par la grammaire du format
   arch: string;          // amd64 | arm64 | all | x86_64 | aarch64 | noarch | x86_64(apk) ...
   size: number;
-  sha256: string; sha512: string; sha1: string; md5: string; // md5/sha1 seulement pour compat. métadonnées
+  digests: { sha256: string; sha512: string; sha1: string; md5: string }; // md5/sha1 : compat. métadonnées
   control: Record<string, string>; // champs bruts nécessaires à la régénération des métadonnées
-  depends: Relation[]; provides: Relation[]; conflicts: Relation[]; // normalisés
+  depends: RelationGroup[];        // Pre-Depends puis Depends en Debian
+  provides: Relation[]; conflicts: Relation[]; // conflicts = Conflicts + Breaks en Debian
+  replaces: Relation[];  // Replaces (deb), Obsoletes (rpm), replaces (apk) : signal SEC-02
   files?: string[];      // RPM : liste des fichiers (filelists) ; deb/apk : non requis
   sourceName?: string; sourceVersion?: string; // pour le matching CVE (paquet source)
   maintainerScripts: string[]; // noms des scripts présents (preinst, %post, .pre-install...)
@@ -65,12 +73,22 @@ apk-tools `test/version.data`) : copier les fichiers de données de test avec le
 2. `control.tar.*` : décompresser **en flux borné** (<= 10 MiB décompressé), lire `./control`
    (obligatoire), noter la présence de `preinst`, `postinst`, `prerm`, `postrm`, `config`,
    `triggers`. Rejeter liens symboliques/durs et chemins absolus dans `control.tar`.
-3. `data.tar.*` : **non décompressé** par défaut (inutile pour publier). Option de politique
-   `inspect_data` : parcours en flux pour détecter setuid/setgid, fichiers world-writable,
-   chemins hors FHS : signaux d'alerte, pas de blocage par défaut.
+3. `data.tar.*` : jamais extrait et inutile pour publier, mais décompressé en flux pour l'antivirus
+   (SEC-01). Pendant cette même lecture, l'inventaire des entrées est **obligatoire** (pas une
+   option) : fichiers setuid/setgid, périphériques, fichiers world-writable, et chemins qui
+   s'exécutent en root sans script mainteneur (`/etc/cron*`, `/etc/apt/apt.conf.d/`,
+   `/etc/sudoers.d/`, `/etc/ld.so.preload`, `/etc/udev/rules.d/`, `/lib/udev/rules.d/`, unités systemd,
+   `/etc/profile.d/`). Ce sont des faits de la règle intégrée `sensitive-content` (SEC-02, `docs/04`).
+   Même inventaire pour les fichiers d'un RPM (en-tête : `FILEMODES`, `BASENAMES`) et le membre
+   données d'un APK. Réalisation : M4 (décision de la revue de sécurité du parseur deb, 2026-10-26).
 4. Parser `control` (format RFC 822 Debian : champs, continuation par espace, ` .` = ligne vide).
    Champs requis : `Package`, `Version`, `Architecture`, `Maintainer`, `Description`.
    Regex `Package` : `^[a-z0-9][a-z0-9+.-]+$`. `Architecture` dans la liste du dépôt ou `all`.
+5. Champs réservés refusés dans `control` (quelle que soit la casse) : ceux que l'archive écrit
+   elle-même dans `Packages` (`Filename`, `Size`, `MD5sum`, `SHA1`, `SHA256`, `SHA512`,
+   `Description-md5`) et ceux de la base de statut de dpkg (`Status`, `Config-Version`, `Conffiles`).
+   `Packages` se construit à partir d'une liste de champs autorisés, jamais par recopie du contrôle,
+   et toute recherche de champ y est insensible à la casse (M3).
 
 ### 2.2 Arborescence publiée (par canal)
 
@@ -166,9 +184,24 @@ dans le `.repo` ; apk : identifiants dans l'URL de `/etc/apk/repositories` (`htt
    `FILEMODES`, `FILEFLAGS`, `PAYLOADCOMPRESSOR`, scriptlets `PREIN/POSTIN/PREUN/POSTUN/...`.
    Bornes : nindex <= 65 536, hsize <= 64 MiB, chaque offset/longueur vérifié dans `store`,
    types de tags vérifiés, chaînes terminées par NUL dans les bornes.
-4. Le **payload** (cpio compressé) n'est **pas** décompressé. Vérifier que `SHA256HEADER`
-   correspond au hash du header lu, et que la taille totale correspond à `SIZE` si présent.
-5. Calculer `headerStart`/`headerEnd` (octets) : requis par `<rpm:header-range>` dans `primary.xml`.
+4. Le **payload** (cpio compressé) n'est décompressé que pour l'antivirus (SEC-01), jamais extrait.
+   `SHA256HEADER` est **obligatoire** et doit correspondre à l'en-tête lu ; `SHA1HEADER`, `SIZE` /
+   `LONGSIZE` et `PAYLOADDIGEST` (avec `PAYLOADDIGESTALGO` = 8, SHA-256) sont vérifiés s'ils sont
+   présents. Compresseur absent = gzip (comme `rpmte.c`) ; `lzma` refusé (ADR-0015) ; payload autre
+   que cpio refusé ; paquet source (lead de type 1) refusé.
+5. Calculer `headerStart`/`headerEnd` (octets) : requis par `<rpm:header-range>` dans `primary.xml`
+   (`ParsedPackage.headerRange`).
+6. Contrôles de structure repris de `lib/header.c` (rpm 4.19.1) : région et trailer couvrant tout
+   l'en-tête, entrées croissantes sans chevauchement, types, alignements, nombres, chaînes terminées
+   avant le trailer, tags connus au type **exact** (rpm tolère un autre type chaîne, mais lit alors une
+   traduction choisie selon la locale du client : nom, version ou scriptlet différents d'un hôte à
+   l'autre), table `HEADERI18NTABLE` à une seule locale et chaînes traduites à un seul élément,
+   doublons refusés ; texte republié sans C0, DEL, C1, U+FFFE ni U+FFFF (XML 1.0) ; dossiers
+   absolus et canoniques, noms de fichiers sans `/`, `.` ni `..` ; numéros de tags dans
+   `src/formats/rpm/tags.ts` avec leur source. Scriptlets signalés (SEC-02) par leur corps ou leur
+   seul interpréteur (`%post -p`) : `%pretrans`, `%pre`, `%post`, `%preun`, `%postun`, `%posttrans`,
+   `%preuntrans`, `%postuntrans`, `%verifyscript`, déclencheurs (`%triggers`, `%filetriggers`,
+   `%transfiletriggers`).
 
 ### 3.2 Arborescence publiée
 
@@ -239,18 +272,36 @@ permettrait à un serveur de dépôt compromis d'imposer sa clé.
 
 ### 4.1 Lecture d'un `.apk`
 
-Un `.apk` v2 est une concaténation de flux gzip : [signature] + contrôle + données.
-1. Découper les membres gzip **sans tout décompresser en mémoire** (décompression en flux,
-   détection de fin de membre). Limites : <= 3 membres, contrôle <= 10 MiB décompressé.
-2. Membre signature (optionnel) : tar contenant `.SIGN.RSA.<keyname>.rsa.pub` (SHA-1) ou
-   `.SIGN.RSA256.<keyname>.rsa.pub` (SHA-256), signature du **membre contrôle compressé**.
-3. Membre contrôle : tar (sans bloc de fin) contenant `.PKGINFO` (`clé = valeur`) et scripts
-   `.pre-install`, `.post-install`, `.pre-upgrade`, `.post-upgrade`, `.pre-deinstall`,
-   `.post-deinstall`, `.trigger`. Champs `.PKGINFO` : `pkgname`, `pkgver`, `arch`, `size`,
-   `pkgdesc`, `url`, `license`, `origin`, `maintainer`, `builddate`, `depend`, `provides`,
-   `install_if`, `datahash` (sha256 du membre données).
-4. Vérifier `datahash` contre le SHA-256 du membre données (lu en flux, non extrait).
-5. Le `C:` de l'APKINDEX = `Q1` + base64(SHA-1 du membre contrôle compressé).
+Un `.apk` v2 est une concaténation de membres gzip : [signature] + contrôle + données
+(`src/formats/apk/`, lecture d'apk-tools 2.14 `src/package.c`). apk lit l'ensemble comme un seul
+flux tar ; les frontières de membres ne servent qu'aux empreintes. Ici chaque membre doit contenir
+exactement sa partie, pour que notre lecture et celle d'apk coïncident.
+1. Les membres de signature et de contrôle sont lus un à un (`common/gzip-member.ts` : en-tête RFC
+   1952 analysé, deflate par `node:zlib`, longueur compressée exacte, CRC32 et ISIZE vérifiés),
+   chacun au plus `maxControlBytes` (10 MiB) décompressé. Les données ne sont jamais décompressées
+   par `parse` : seulement hachées.
+2. Membre signature (facultatif) : premier membre dont **toutes** les entrées sont des fichiers
+   `.SIGN.(RSA512|RSA256|RSA|DSA).<clé>` (au plus 64 Kio chacun, nom de clé `[A-Za-z0-9][A-Za-z0-9._@+-]*`).
+   La signature porte sur le **membre contrôle compressé**. Algorithme et nom de clé sont exposés
+   (`ParsedPackage.signatures`) ; la vérification cryptographique relève du pipeline (M4/M5).
+3. Membre contrôle : tar sans blocs de fin, uniquement des fichiers ordinaires aux noms exacts
+   `.PKGINFO` (obligatoire) et `.pre-install`, `.post-install`, `.pre-deinstall`,
+   `.post-deinstall`, `.pre-upgrade`, `.post-upgrade`, `.trigger` (ordre d'`apk_script_types`),
+   sans doublon. Tout autre nom (`./.PKGINFO`, `.INSTALL`, `.SIGN.*`, fichier de données) est refusé.
+4. `.PKGINFO` : UTF-8, lignes `clé = valeur`, commentaires `#` ; refusés : ligne sans « = », clé
+   simple répétée (apk garderait la dernière), caractère de contrôle. Seules `depend`, `provides`,
+   `replaces`, `install_if`, `triggers` se répètent. Obligatoires : `pkgname`, `pkgver` (version APK
+   valide), `arch` (`[a-z0-9_]+`), `datahash` (64 hexadécimaux). Nombres (`size`, `builddate`...)
+   décimaux. Dépendances `[!]nom[@étiquette][op version]`, `op` parmi `< <= = >= > ~` (`~` ->
+   `fuzzy`) ; `!` -> `conflicts` ; `provides` sans opérateur autre que `=`, `replaces` sans version.
+   `install_if` est validé et gardé brut (signal SEC-02). Sans `origin`, la source est le paquet.
+5. `datahash` = SHA-256 de **tout ce qui suit le membre contrôle** (un ou plusieurs membres de
+   données), comparé en flux. Un paquet sans `datahash` (ancien format où la signature couvre aussi
+   les données) est refusé.
+6. Identifiant `C:` de l'APKINDEX = `Q1` + base64(SHA-1 du membre contrôle compressé)
+   (`ParsedPackage.indexChecksum`), indépendant du membre signature.
+7. Flux internes pour l'antivirus (SEC-01) : `control.tar` puis `data.tar` décompressés ; des octets
+   après le dernier membre gzip font échouer l'analyse (fail closed).
 
 ### 4.2 Arborescence publiée
 

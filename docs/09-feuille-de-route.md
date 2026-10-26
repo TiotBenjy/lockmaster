@@ -32,18 +32,18 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
 - [x] `src/main.ts`, `src/app.ts` (objet `Deps`), `src/http/server.ts` (Fastify, helmet + CSP +
       Permissions-Policy, request-id, erreurs sans fuite, `/healthz`, `/readyz`), CLI minimale
       (`serve`, `init` minimal : clé maîtresse + base vide, `config check`, `healthcheck`)
-- [ ] `scripts/check-licenses.mjs` en CI : licences de l'arbre de production conformes à CLAUDE.md
+- [x] `scripts/check-licenses.mjs` en CI : licences de l'arbre de production conformes à CLAUDE.md
       §Licence ; licences tierces copiées dans les paquets (`/usr/share/doc/<paquet>/`) et l'image
 - [x] Hook `onRoute` : toute route doit déclarer `perm` ou `public` ; test
 - [x] Robustesse du processus (`docs/01` §4) : arrêt sur exception non gérée, arrêt propre sur
       `SIGTERM`, surveillance de la boucle d'événements, limites HTTP ; tests
-- [ ] `.dependency-cruiser.cjs` (règles de couches de `docs/01` §6 : `domain`/`formats` sans
+- [x] `.dependency-cruiser.cjs` (règles de couches de `docs/01` §6 : `domain`/`formats` sans
       infrastructure, `http`/`web` sans accès base, application sans `src/signer/`, `web/client` isolé)
       exécuté par `pnpm check` et en CI ; `src/app.ts` construit l'objet `Deps` (injection, aucun
       singleton mutable)
-- [ ] Squelette `test/contracts/` (une fonction de suite par interface) et `test/fakes/` ; la CI refuse
+- [x] Squelette `test/contracts/` (une fonction de suite par interface) et `test/fakes/` ; la CI refuse
       une implémentation d'interface sans appel à sa suite de conformité
-- [ ] Tests de garde : grep CI interdisant `child_process.exec(`, `eval(`, `new Function`,
+- [x] Tests de garde : grep CI interdisant `child_process.exec(`, `eval(`, `new Function`,
       `dangerouslySetInnerHTML`, `NODE_TLS_REJECT_UNAUTHORIZED` dans `src/`, `x-html`, `hx-on`,
       `style=` et `import 'alpinejs'` dans `src/web/`, ainsi que les caractères typographiques
       interdits par CLAUDE.md §Style d'écriture dans les fichiers du projet (mêmes règles que les hooks)
@@ -52,14 +52,14 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
       embarqué et vérifié par SHA-256, unité systemd durcie, utilisateur `lockmaster`, conffile)
 - [x] `packaging/Containerfile` multi-étapes, non-root, compatible `docker build` et `podman build` ;
       dossiers `/run/lockmaster-sign`, `/var/lib/lockmaster-signer`, `/var/lib/lockmaster` avec les propriétaires d'ADR-0007
-- [ ] Unités `packaging/systemd/` (`lockmaster.service`, `lockmaster-signer.socket`, `lockmaster-signer.service`),
+- [x] Unités `packaging/systemd/` (`lockmaster.service`, `lockmaster-signer.socket`, `lockmaster-signer.service`),
       `packaging/sysusers/lockmaster.conf`, `packaging/tmpfiles/lockmaster.conf` installées par les paquets ;
       `systemd-analyze verify` et `systemd-analyze security` (signataire <= 1,0, application <= 2,0) en CI
-- [ ] Quadlets `deploy/quadlet/` (deux comptes) validés par `quadlet -dryrun` en CI ; `deploy/compose.yaml`
+- [x] Quadlets `deploy/quadlet/` (deux comptes) validés par `quadlet -dryrun` en CI ; `deploy/compose.yaml`
       validé par `compose config`
 - [x] `packaging/nfpm-repo.yaml` : paquet `lockmaster-repo` (config nginx de référence, `/srv/lockmaster-repo`,
       groupe `lockmaster-repo`, utilisateur `lockmaster-sync` + rrsync, SELinux) ; test `nginx -t` après installation
-- [ ] `deploy/nginx/lockmaster-repo.container.conf` régénéré par `packaging/gen-nginx-container-conf.sh`
+- [x] `deploy/nginx/lockmaster-repo.container.conf` régénéré par `packaging/gen-nginx-container-conf.sh`
       (la CI échoue si le fichier commité diffère) ; `deploy/gen-test-cert.sh` (certificat auto-signé
       pour le service `repo` en test et en dev)
 - [ ] Sécurité du dépôt GitHub : workflows CodeQL (`javascript-typescript`) et `dependency-review` sur
@@ -67,23 +67,39 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
       dans `docs/guide/` : signalement privé de vulnérabilités, analyse des secrets avec protection à
       l'envoi, Dependabot (`.github/dependabot.yml`), branche principale protégée avec revue des
       `CODEOWNERS` (propriétaire : TiotBenjy) ; image publiée sur `ghcr.io/tiotbenjy/lockmaster`
-- [ ] `deploy/compose.yaml` (signer + lockmaster + clamav + repo), `deploy/quadlet/` ; CI GitHub Actions : check, test, build, package,
+- [x] `deploy/compose.yaml` (signer + lockmaster + clamav + repo), `deploy/quadlet/` ; CI GitHub Actions : check, test, build, package,
       image, test d'installation du .deb (Debian 12 et 13) et du .rpm (Rocky 9 et 10) qui vérifie `/healthz`
 
-État au 2026-10-26 : les cases restées vides exigent un passage vert de la CI, ou un réglage du dépôt
-GitHub (`docs/guide/securite-github.md`). Le premier passage de la CI (après le push du 2026-10-25) a
-échoué à l'installation des dépendances (passage à pnpm 12, corrigé par ADR-0014). Ce qu'elles
-décrivent est en place et vérifié en local par les scripts que lance la CI : gardes, contrats,
-licences et `pnpm audit` ; `test/deliverables/packages.sh` et `repo-package.sh` sur Debian 12,
-Debian 13, Rocky 9 et Rocky 10 (dont `systemd-analyze verify` et `security` : 0,3 pour le
-signataire, 1,4 pour l'application) ; `test/deliverables/image.sh` avec Podman rootless et Docker ;
-`quadlet -dryrun`, `compose config`, régénération de la configuration nginx. Le critère de sortie
-ci-dessous passe de même en local. Limites connues : le contexte SELinux est enregistré
-(`semanage`) mais son application aux fichiers ne se vérifie pas dans un conteneur : à constater sur
-un hôte Rocky réel avant de cocher ce point du critère de sortie, sinon à déclarer irréalisable en CI
-par un ADR ; les quadlets ne
-sont validés que par `quadlet -dryrun` ; l'image n'est publiée sur ghcr.io qu'au premier tag de
-version (`release.yml`). À cocher après le premier passage vert de la CI.
+État au 2026-10-26 : la CI est verte (constat du porteur), avec les mêmes scripts qu'en local :
+gardes, contrats, licences, `pnpm audit`, tests et fuzzing ; `test/deliverables/packages.sh` et
+`repo-package.sh` sur Debian 12, Debian 13, Rocky 9 et Rocky 10 (dont `systemd-analyze verify` et
+`security` : 0,3 pour le signataire, 1,4 pour l'application) ; `test/deliverables/image.sh` avec
+Podman rootless et Docker ; `quadlet -dryrun`, `compose config`, régénération de la configuration
+nginx. Le critère de sortie ci-dessous passe en CI, avec une réserve.
+
+Reste ouvert avant de clore M0 :
+- **Sécurité du dépôt GitHub** (case ci-dessus) : les workflows sont en place et verts ; restent les
+  réglages du dépôt à activer par le porteur (`docs/guide/securite-github.md`) et la première image
+  publiée sur ghcr.io, au premier tag de version (`release.yml`) : `v0.1.0` (`package.json` à 0.1.0
+  depuis le 2026-10-26).
+- **Contexte SELinux sur Rocky** (critère de sortie) : la règle `httpd_sys_content_t` est enregistrée
+  par le paquet (`semanage fcontext`, vérifié en CI), mais son application aux fichiers ne se vérifie
+  pas dans un conteneur, où SELinux est désactivé. À constater sur un hôte Rocky réel, sinon à
+  déclarer irréalisable en CI par un ADR.
+- Les quadlets ne sont validés que par `quadlet -dryrun` (ce que demande le critère) ; leur démarrage
+  réel sous deux comptes n'a pas été essayé.
+
+**Dérogation (décision du porteur, 2026-10-26)** : M1 commence avant la clôture de M0, par exception
+à la règle « ne pas commencer M(n+1) avant que tous les critères de M(n) soient cochés ». Motif : les
+deux points ouverts (réglages du dépôt GitHub et première image sur ghcr.io ; contexte SELinux
+constaté sur un hôte Rocky réel) relèvent de l'exploitation et ne touchent pas le code des parseurs
+de M1. Ils restent à fermer avant de commencer M2 ; la case et le critère de sortie restent décochés
+d'ici là.
+
+**Seconde dérogation (décision du porteur, 2026-10-26)** : faute d'hôte Rocky disponible pour le
+développement, le constat du contexte SELinux sur un hôte réel est reporté ; il ne bloque pas M2 et
+sera fait au plus tard avant la version 1.0 (M10). Le critère de sortie reste décoché d'ici là. Seuls
+les réglages du dépôt GitHub et la première image sur ghcr.io restent à fermer avant M2.
 
 Critère de sortie, en CI, pour chacun des trois livrables :
 - `.deb` (Debian 12 et 13) et `.rpm` (Rocky 9 et 10) dans un conteneur avec systemd : installation, puis
@@ -104,16 +120,29 @@ Critère de sortie, en CI, pour chacun des trois livrables :
 
 Exigences `docs/11` : SEC-22 (mémoire des décompresseurs : fenêtre zstd, limite xz), SEC-01 (décompression en flux de control/data tar, payload cpio, membres apk, réutilisée par le scan).
 
-- [ ] `formats/common` : lecteur ar, tar en flux (`tar-stream`), gzip/zstd (`node:zlib`),
-      xz (bibliothèque choisie et justifiée par ADR), `limits.ts` avec compteur de ratio
-- [ ] `formats/deb` : parse `.deb` -> `ParsedPackage` ; parseur/sérialiseur RFC 822 Debian ;
+- [x] `formats/common` : lecteur ar, lecteur tar maison, gzip/zstd (`node:zlib`), décodeurs xz
+      (portage d'xz-embedded) et bzip2 maison (ADR-0015), `limits.ts` avec compteur de ratio
+- [x] `formats/deb` : parse `.deb` -> `ParsedPackage` ; parseur/sérialiseur RFC 822 Debian ;
       `compareDebVersion` + vecteurs dpkg
-- [ ] `formats/rpm` : lead, signature header, header ; tags nécessaires ; `headerRange` ;
+- [x] `formats/rpm` : lead, signature header, header ; tags nécessaires ; `headerRange` ;
       `rpmvercmp` + vecteurs rpm
-- [ ] `formats/apk` : découpe des membres gzip, `.PKGINFO`, vérification `datahash`, `C:` ;
+- [x] `formats/apk` : découpe des membres gzip, `.PKGINFO`, vérification `datahash`, `C:` ;
       `compareApkVersion` + vecteurs apk-tools
-- [ ] Générateur de fixtures `test/fixtures/build.ts` + corpus malformé ; tests fast-check
+- [x] Générateur de fixtures `test/fixtures/build.ts` + corpus malformé ; tests fast-check
       (aucune exception non typée, limites respectées) ; couverture >= 90 %
+
+État au 2026-10-26 : critères atteints, avec deux écarts de forme. Les générateurs sont un module par
+format dans `test/fixtures/builders/` (et non un seul `build.ts`), et les cas malformés sont générés
+dans les tests de chaque format (le corpus sur disque `test/fixtures/corpus/` ne contient que des
+fichiers produits par de vrais outils) : `docs/10` §Fixtures décrit cette organisation. Couverture de
+`src/formats` : 100 % des lignes et des branches. Au-delà des critères, `pnpm test:e2e` confronte les
+trois comparateurs de versions à dpkg, rpm et apk, et les trois parseurs à de vrais paquets de
+Debian 12 et 13, Rocky 9 et 10, Alpine 3.20 et 3.22 (`docs/10`) ; cela a révélé trois refus à tort de
+vrais RPM, corrigés ; ces tests tournent en CI (job « Tests e2e »). Revues `security-reviewer` :
+verdict OK pour `formats/common`, deb, rpm, apk et le correctif rpm. ADR-0015 (décompression et tar
+sans dépendance) et ADR-0016 (conteneurs e2e sans testcontainers) acceptés par le porteur le
+2026-10-26 : **M1 est clos**. Les points ouverts de M0 restent à fermer avant M2 (dérogation
+ci-dessus).
 
 ## M2 : Base, blobs, audit, crypto
 
@@ -145,7 +174,9 @@ Reporté de M0 (SEC-29) : la clé maîtresse de l'application est en `root:root`
 
 Exigences `docs/11` : SEC-05 (`Origin`/`Label` uniques, `Valid-Until` 7 j), SEC-25 (hash revérifié pendant l'envoi vers les cibles).
 
-- [ ] `publish/deb` : `Packages`(+gz), `Release`, `InRelease`, `Release.gpg`, by-hash, déterminisme
+- [ ] `publish/deb` : `Packages`(+gz), `Release`, `InRelease`, `Release.gpg`, by-hash, déterminisme ;
+      strophes construites depuis une liste de champs autorisés (recherche insensible à la casse),
+      jamais par recopie du contrôle (`docs/03` §2.1, revue du parseur deb)
 - [ ] Générations immuables, bascule atomique, conservation K, vérification avant bascule
 - [ ] Cible `local` (`publish/targets/local.ts`) : arborescence `public/` d'ADR-0003, fichiers de
       paquets immuables (refus d'écrasement), bascule par lien symbolique, `.lockmaster-target.json`,
@@ -173,11 +204,36 @@ encore durci (`cap_drop`, `read_only`, `tmpfs`) ; à faire avec le client clamd,
 et les droits du socket. Quadlet `repo` : nginx tourne sous l'UID hôte du compte `lockmaster`
 (`keep-id:uid=101`) ; étudier un `UIDMap`/`GIDMap` qui ne projette que le groupe.
 
+Reporté de M1 (revue de `formats/common`) : les décodeurs xz et bzip2 rendent des données avant de
+vérifier le CRC et les tailles de bloc, donc le verdict clamd d'un flux ne compte que si la
+décompression s'est terminée sans erreur. Les `ArrayBuffer` (dictionnaire xz jusqu'à 64 MiB, tableau
+BWT de 3,6 Mo) et la mémoire native de zstd (fenêtre de 128 MiB) échappent aux `resourceLimits` des
+workers : dimensionner le pool en conséquence. L'échéance d'analyse est imposée par
+`worker.terminate()` depuis le fil principal, pas par l'`AbortSignal` (`limits.ts`).
+
+Reporté de M1 (revue du parseur deb) : inventaire obligatoire du contenu (data.tar, fichiers RPM,
+données APK) pendant la lecture faite pour l'antivirus, règle intégrée `sensitive-content`
+(`docs/03` §2.1, `docs/04` §3) avec ses tests (« .deb sans script avec un fichier setuid ->
+pending_review », « fichier dans /etc/cron.d -> pending_review ») : SEC-02 n'est pas fermée sans
+elle. clamd n'est pas fail-closed par défaut au-delà de `MaxScanSize`/`MaxFileSize` (il répond `OK`) :
+configurer `AlertExceedsMax yes`, traiter `Heuristics.Limits.Exceeded` et `INSTREAM size limit
+exceeded` en `error`, et tester un data.tar plus grand que `MaxScanSize`. RPM : `FILECAPS`
+(tag 5010, capacités comme `cap_setuid+ep`) entre dans `sensitive-content` au même titre que
+`FILEMODES`, dont la longueur doit égaler celle de `BASENAMES` (revue du parseur rpm).
+
+Reporté de M1 (revue du parseur apk) : quand l'inventaire lira les membres de données APK, le lecteur
+tar doit accepter et **traiter** les clés pax `APK-TOOLS.checksum.SHA1` (ajoutée par abuild-tar
+`--hash`) et `SCHILY.xattr.*`, aujourd'hui refusées par la liste blanche ; `SCHILY.xattr.security.capability`
+entre dans `sensitive-content` comme `FILECAPS`. Les écarts de lecture d'apk (nom commençant par NUL
+pris pour un bloc de fin, préfixe ustar prioritaire sur un nom long `L`, `K` ignoré, somme de contrôle
+non vérifiée, types inconnus sautés) restent refusés plutôt que reproduits. La règle SEC-02 analyse
+`install_if` (gardé brut dans `control`, syntaxe déjà validée).
+
 - [ ] Machine à états + table de vérité testée ; jobs persistants (`jobs/`) avec reprise
 - [ ] Pool de `worker_threads` pour l'analyse des paquets (`resourceLimits`, échéance, recréation) ;
       test : bombe de décompression et paquet qui boucle -> worker terminé, paquet en `error`,
       application toujours disponible
-- [ ] Client clamd `zINSTREAM` (tests réels avec EICAR via testcontainers) ; fail-closed
+- [ ] Client clamd `zINSTREAM` (tests réels avec EICAR dans un conteneur clamav, ADR-0016) ; fail-closed
 - [ ] SBOM CycloneDX + client grype (`execFile`, timeout, zod sur la sortie) ; base locale
 - [ ] Flux KEV et EPSS (téléchargement, validation, swap atomique) ; job `feeds.refresh`
 - [ ] Moteur de politique pur + document par défaut + tables de cas ; décisions enregistrées
@@ -188,6 +244,16 @@ et les droits du socket. Quadlet `repo` : nginx tourne sous l'UID hôte du compt
 ## M5 : RPM et APK
 
 Exigences `docs/11` : SEC-03 (clés hors bande, `gpgkey=file://`, empreinte affichée ; e2e : un serveur de dépôt qui sert une autre clé ne fait rien installer), SEC-02 (épinglage client : apt preferences, dnf `includepkgs`, apk dépôt étiqueté ; e2e : `openssl` 99.0 interne non installé par `apt upgrade`), SEC-25 (analyse de l'artefact re-signé).
+
+Reporté de M1 (revue du parseur rpm) : le parseur exige l'UTF-8 strict dans toutes les chaînes de
+l'en-tête (fail-closed) ; vérifier sur un corpus de vrais paquets Rocky 9 et 10 qu'aucun n'est refusé.
+
+Reporté de M1 (revue du parseur apk) : l'APKINDEX se construit depuis une liste de clés autorisées,
+jamais par recopie de `control` ; `S:` vient de la taille réelle du fichier, et `size` de `.PKGINFO`
+(taille installée) va dans `I:`. `signatures.keyName` ne sert jamais à construire un chemin. Déjà
+vérifié en M1 (`test/e2e/formats/packages.test.ts`) : sur de vrais `.apk` d'Alpine 3.20 et 3.22,
+`indexChecksum`, nom, version, architecture et taille égalent ceux d'`apk index`. Les paquets
+officiels sont signés en `.SIGN.RSA.` (SHA-1) : le mode `resign` doit les re-signer en RSA256.
 
 - [ ] `publish/rpm` : primary/filelists/other (+ zst optionnel), repomd, `.asc` ; e2e `dnf install`
       sur Rocky 9 et Rocky 10 avec `gpgcheck=1` et `repo_gpgcheck=1`
@@ -245,7 +311,9 @@ Exigences `docs/11` : SEC-13 (garde SSRF avec résolution épinglée), SEC-17 (m
 - [ ] Sources amont : téléchargement d'index (APT InRelease, RPM repomd + .asc, APKINDEX signé),
       vérification de signature avec trousseau explicite, cache ETag, garde SSRF
 - [ ] Indexation `upstream_package` + FTS ; recherche
-- [ ] Résolution de dépendances (alternatives, Provides virtuels, versions, boucles) par format
+- [ ] Résolution de dépendances (alternatives, Provides virtuels, versions, boucles) par format ;
+      RPM : une release absente dans une dépendance correspond à toutes les releases (`rpmds`), une
+      comparaison distincte de `compareRpmEvr` (ordre entre paquets) est nécessaire (revue M1)
 - [ ] Import (hash vérifié contre l'index) -> pipeline standard ; miroir planifié filtré
 - [ ] e2e : import de `nginx` + dépendances depuis un dépôt amont de test (fixture signée servie
       par un conteneur), puis `apt install nginx` depuis Lockmaster
@@ -282,6 +350,10 @@ Exigences `docs/11` : SEC-06 (rotation d'urgence + runbook + exercice e2e), SEC-
 ## M10 : Durcissement et version 1.0
 
 Exigences `docs/11` : revue de **toutes** les exigences SEC-01 à SEC-30 (chacune fermée par son test), décision SEC-07 appliquée, SEC-24 (attestations SLSA, reproductibilité).
+
+Reporté de M0 (seconde dérogation) : installer `lockmaster-repo` sur des hôtes Rocky 9 et 10 réels,
+SELinux en mode `Enforcing`, et constater `httpd_sys_content_t` sur `/srv/lockmaster-repo`
+(`ls -Zd`) ; puis cocher le critère de sortie de M0.
 
 - [ ] Fuzzing long sur tous les parseurs (30 min chacun) sans échec
 - [ ] Revue `/revue-securite all` sans constat bloquant ; checklist `docs/10-tests.md`

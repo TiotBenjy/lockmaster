@@ -22,6 +22,7 @@ if [ "$engine" = docker ] && ! docker image inspect "$image" >/dev/null 2>&1; th
   podman save "$image" | docker load -q >/dev/null
 fi
 
+mkdir -p "$out"
 work=$(mktemp -d "$out/deliverables-$engine.XXXXXX")
 # Ménage par le moteur : les fichiers appartiennent aux UID des conteneurs.
 cleanup() {

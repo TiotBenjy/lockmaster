@@ -52,7 +52,7 @@ les scans en `pass`. Un scanner indisponible/timeout -> `error` + job de reprise
 |---|---|
 | Taille d'un paquet | `http.max_upload_bytes` (2 GiB) |
 | Taille décompressée d'un membre de contrôle | 10 MiB |
-| Ratio de décompression | <= 100:1 sur les membres décompressés |
+| Ratio de décompression | <= 100:1 sur les membres décompressés, au-delà d'un plancher de 1 MiB toujours permis (une archive tar vide fait 10 Kio) ; xz et bzip2 : au plus 8 flux concaténés plus 1 par Kio lu (ADR-0015) |
 | Entrées tar dans le contrôle | <= 1 000 |
 | Champ texte de contrôle | <= 64 KiB, total <= 1 MiB |
 | En-tête RPM | nindex <= 65 536, store <= 64 MiB |

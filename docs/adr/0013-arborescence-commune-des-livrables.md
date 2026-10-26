@@ -1,6 +1,6 @@
 # ADR-0013 : Même arborescence dans les paquets et dans l'image
 
-- Statut : proposé
+- Statut : accepté (décision du porteur, 2026-10-26)
 - Date : 2026-10-25
 - Complète ADR-0007 (§Décision, tableau des livrables et paragraphe sur `/usr/bin/lockmaster`)
 
