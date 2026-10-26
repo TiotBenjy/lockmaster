@@ -193,7 +193,11 @@ dans le `.repo` ; apk : identifiants dans l'URL de `/etc/apk/repositories` (`htt
    (`ParsedPackage.headerRange`).
 6. Contrôles de structure repris de `lib/header.c` (rpm 4.19.1) : région et trailer couvrant tout
    l'en-tête, entrées croissantes sans chevauchement, types, alignements, nombres, chaînes terminées
-   avant le trailer, tags connus au bon type, doublons refusés ; numéros de tags dans
+   avant le trailer, tags connus au type **exact** (rpm tolère un autre type chaîne, mais lit alors une
+   traduction choisie selon la locale du client : nom, version ou scriptlet différents d'un hôte à
+   l'autre), table `HEADERI18NTABLE` à une seule locale et chaînes traduites à un seul élément,
+   doublons refusés ; texte republié sans C0, DEL, C1, U+FFFE ni U+FFFF (XML 1.0) ; dossiers
+   absolus et canoniques, noms de fichiers sans `/`, `.` ni `..` ; numéros de tags dans
    `src/formats/rpm/tags.ts` avec leur source. Scriptlets signalés (SEC-02) par leur corps ou leur
    seul interpréteur (`%post -p`) : `%pretrans`, `%pre`, `%post`, `%preun`, `%postun`, `%posttrans`,
    `%preuntrans`, `%postuntrans`, `%verifyscript`, déclencheurs (`%triggers`, `%filetriggers`,

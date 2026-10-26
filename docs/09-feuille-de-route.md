@@ -198,7 +198,9 @@ données APK) pendant la lecture faite pour l'antivirus, règle intégrée `sens
 pending_review », « fichier dans /etc/cron.d -> pending_review ») : SEC-02 n'est pas fermée sans
 elle. clamd n'est pas fail-closed par défaut au-delà de `MaxScanSize`/`MaxFileSize` (il répond `OK`) :
 configurer `AlertExceedsMax yes`, traiter `Heuristics.Limits.Exceeded` et `INSTREAM size limit
-exceeded` en `error`, et tester un data.tar plus grand que `MaxScanSize`.
+exceeded` en `error`, et tester un data.tar plus grand que `MaxScanSize`. RPM : `FILECAPS`
+(tag 5010, capacités comme `cap_setuid+ep`) entre dans `sensitive-content` au même titre que
+`FILEMODES`, dont la longueur doit égaler celle de `BASENAMES` (revue du parseur rpm).
 
 - [ ] Machine à états + table de vérité testée ; jobs persistants (`jobs/`) avec reprise
 - [ ] Pool de `worker_threads` pour l'analyse des paquets (`resourceLimits`, échéance, recréation) ;
@@ -215,6 +217,9 @@ exceeded` en `error`, et tester un data.tar plus grand que `MaxScanSize`.
 ## M5 : RPM et APK
 
 Exigences `docs/11` : SEC-03 (clés hors bande, `gpgkey=file://`, empreinte affichée ; e2e : un serveur de dépôt qui sert une autre clé ne fait rien installer), SEC-02 (épinglage client : apt preferences, dnf `includepkgs`, apk dépôt étiqueté ; e2e : `openssl` 99.0 interne non installé par `apt upgrade`), SEC-25 (analyse de l'artefact re-signé).
+
+Reporté de M1 (revue du parseur rpm) : le parseur exige l'UTF-8 strict dans toutes les chaînes de
+l'en-tête (fail-closed) ; vérifier sur un corpus de vrais paquets Rocky 9 et 10 qu'aucun n'est refusé.
 
 - [ ] `publish/rpm` : primary/filelists/other (+ zst optionnel), repomd, `.asc` ; e2e `dnf install`
       sur Rocky 9 et Rocky 10 avec `gpgcheck=1` et `repo_gpgcheck=1`
@@ -272,7 +277,9 @@ Exigences `docs/11` : SEC-13 (garde SSRF avec résolution épinglée), SEC-17 (m
 - [ ] Sources amont : téléchargement d'index (APT InRelease, RPM repomd + .asc, APKINDEX signé),
       vérification de signature avec trousseau explicite, cache ETag, garde SSRF
 - [ ] Indexation `upstream_package` + FTS ; recherche
-- [ ] Résolution de dépendances (alternatives, Provides virtuels, versions, boucles) par format
+- [ ] Résolution de dépendances (alternatives, Provides virtuels, versions, boucles) par format ;
+      RPM : une release absente dans une dépendance correspond à toutes les releases (`rpmds`), une
+      comparaison distincte de `compareRpmEvr` (ordre entre paquets) est nécessaire (revue M1)
 - [ ] Import (hash vérifié contre l'index) -> pipeline standard ; miroir planifié filtré
 - [ ] e2e : import de `nginx` + dépendances depuis un dépôt amont de test (fixture signée servie
       par un conteneur), puis `apt install nginx` depuis Lockmaster

@@ -24,8 +24,9 @@ export interface RpmHeader {
   readonly bytes: Uint8Array;
   readonly byteLength: number;
   has(tag: number): boolean;
-  /** Chaîne (première d'un tableau ou d'une chaîne traduite, comme rpmtdGetString). */
+  /** Chaîne simple, ou chaîne traduite (une seule traduction admise). */
   string(tag: number): string | undefined;
+  /** Tableau de chaînes (type STRING_ARRAY exact). */
   strings(tag: number): string[];
   uint16(tag: number): number[];
   uint32(tag: number): number[];
@@ -133,13 +134,14 @@ function checkEntry(entry: Info, dl: number, kind: HeaderKind): void {
   if (entry.offset % align !== 0) throw invalid('alignement');
   if (entry.offset < 0 || entry.offset > dl) throw invalid('décalage hors limites');
   if (entry.type !== RPM_TYPE.BIN && entry.count > ARRAY_MAX) throw invalid('tableau trop grand');
+  // rpm tolère un autre type de la classe chaîne (hdrchkTagType), mais lit alors une traduction choisie
+  // selon la locale du client (copyI18NEntry) : type exact exigé, sauf STRING pour un tag traduit.
   const expected = kind === 'main' ? MAIN_TYPES.get(entry.tag) : undefined;
-  if (
-    expected !== undefined &&
-    expected !== entry.type &&
-    !(STRING_CLASS.has(expected) && STRING_CLASS.has(entry.type))
-  ) {
-    throw invalid('tag au mauvais type');
+  const tolerated = expected === RPM_TYPE.I18NSTRING && entry.type === RPM_TYPE.STRING;
+  if (expected !== undefined && expected !== entry.type && !tolerated) throw invalid('tag au mauvais type');
+  if (entry.type === RPM_TYPE.I18NSTRING && entry.count !== 1) throw invalid('chaîne traduite en plusieurs langues');
+  if (entry.tag === REGION.I18NTABLE && (entry.type !== RPM_TYPE.STRING_ARRAY || entry.count !== 1)) {
+    throw invalid('table de traductions');
   }
 }
 
@@ -166,18 +168,18 @@ function accessors(bytes: Uint8Array, entries: ReadonlyMap<number, Entry>): RpmH
     const view = new DataView(entry.data.buffer, entry.data.byteOffset, entry.data.byteLength);
     return Array.from({ length: entry.count }, (_, index) => readNumber(view, index * size, size));
   };
-  const strings = (tag: number): string[] => {
+  const strings = (tag: number, types: readonly number[]): string[] => {
     const entry = entries.get(tag);
     if (entry === undefined) return [];
-    if (!STRING_CLASS.has(entry.type)) throw invalid('tag au mauvais type');
+    if (!types.includes(entry.type)) throw invalid('tag au mauvais type');
     return [...entry.strings];
   };
   return {
     bytes,
     byteLength: bytes.length,
     has: (tag) => entries.has(tag),
-    string: (tag) => strings(tag)[0],
-    strings,
+    string: (tag) => strings(tag, [RPM_TYPE.STRING, RPM_TYPE.I18NSTRING])[0],
+    strings: (tag) => strings(tag, [RPM_TYPE.STRING_ARRAY]),
     uint16: (tag) => numbers(tag, RPM_TYPE.INT16, 2),
     uint32: (tag) => numbers(tag, RPM_TYPE.INT32, 4),
     uint64: (tag) => numbers(tag, RPM_TYPE.INT64, 8),

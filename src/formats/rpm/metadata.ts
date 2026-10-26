@@ -8,6 +8,7 @@ import { atNumber } from '../common/bytes.js';
 import { asCompression, type Compression } from '../common/decompress.js';
 import { FormatError } from '../common/errors.js';
 import type { FormatLimits } from '../common/limits.js';
+import { hasForbiddenCharacter } from '../common/text.js';
 import type { RpmHeader } from './header.js';
 import { SCRIPTLETS, TAG } from './tags.js';
 import { formatRpmEvr, parseRpmEvr } from './version.js';
@@ -102,8 +103,9 @@ function relations(
   const versions = header.strings(versionTag);
   if (flags.length !== names.length || versions.length !== names.length) throw invalid('relations incohérentes');
   return names.map((name, index) => {
-    if (name === '' || Buffer.byteLength(name) > limits.maxFieldBytes || hasControl(name))
+    if (name === '' || Buffer.byteLength(name) > limits.maxFieldBytes || hasForbiddenCharacter(name)) {
       throw invalid('nom de relation');
+    }
     const sense = atNumber(flags, index) & SENSE_MASK;
     const version = String(versions[index]);
     if (sense === 0 && version === '') return { name };
@@ -122,11 +124,28 @@ function files(header: RpmHeader, limits: FormatLimits): string[] {
     throw new FormatError('FORMAT_LIMIT_EXCEEDED', `paquet RPM de plus de ${limits.rpmMaxFiles} fichiers`);
   }
   if (indexes.length !== basenames.length) throw invalid('liste de fichiers incohérente');
+  if (!dirnames.every(isCanonicalDirectory)) throw invalid('dossier non canonique');
   return basenames.map((basename, position) => {
     const directory = dirnames[atNumber(indexes, position)];
     if (directory === undefined) throw invalid('indice de dossier hors limites');
+    if (!isPlainSegment(basename)) throw invalid('nom de fichier invalide');
     return `${directory}${basename}`;
   });
+}
+
+/**
+ * Dossier absolu et canonique (`/`, `/usr/bin/`) : un chemin comme `/etc//cron.d/` ou `/etc/./cron.d/`,
+ * que rpm installe dans `/etc/cron.d/`, échapperait sinon à l'inventaire des chemins sensibles (M4).
+ */
+function isCanonicalDirectory(directory: string): boolean {
+  if (!directory.startsWith('/') || !directory.endsWith('/')) return false;
+  return directory === '/' || directory.slice(1, -1).split('/').every(isPlainSegment);
+}
+
+function isPlainSegment(segment: string): boolean {
+  return (
+    segment !== '' && segment !== '.' && segment !== '..' && !segment.includes('/') && !hasForbiddenCharacter(segment)
+  );
 }
 
 function control(
@@ -162,20 +181,11 @@ function payloadCompression(header: RpmHeader): Compression {
 }
 
 function singleLine(value: string | undefined): string | undefined {
-  if (value !== undefined && (value.includes('\n') || hasControl(value))) throw invalid('texte sur une ligne');
+  if (value !== undefined && hasForbiddenCharacter(value)) throw invalid('texte sur une ligne');
   return value;
 }
 
 function text(value: string | undefined): string | undefined {
-  if (value !== undefined && hasControl(value.replaceAll('\n', ' ').replaceAll('\t', ' '))) throw invalid('texte');
+  if (value !== undefined && hasForbiddenCharacter(value, { newline: true, tab: true })) throw invalid('texte');
   return value;
-}
-
-/** Contrôles C0, DEL et C1 (docs/02 §3.2). */
-function hasControl(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return true;
-  }
-  return false;
 }
