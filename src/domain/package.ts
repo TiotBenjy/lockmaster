@@ -43,6 +43,8 @@ export interface ParsedPackage {
   readonly replaces: readonly Relation[];
   /** Liste des fichiers (RPM) ; non requise pour deb et apk. */
   readonly files?: readonly string[];
+  /** RPM : octets de l'en-tête principal dans le fichier (`rpm:header-range` de primary.xml). */
+  readonly headerRange?: { readonly start: number; readonly end: number };
   readonly sourceName?: string;
   readonly sourceVersion?: string;
   /** Scripts exécutés à l'installation présents dans le paquet (signal SEC-02). */
