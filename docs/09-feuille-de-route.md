@@ -80,7 +80,8 @@ nginx. Le critère de sortie ci-dessous passe en CI, avec une réserve.
 Reste ouvert avant de clore M0 :
 - **Sécurité du dépôt GitHub** (case ci-dessus) : les workflows sont en place et verts ; restent les
   réglages du dépôt à activer par le porteur (`docs/guide/securite-github.md`) et la première image
-  publiée sur ghcr.io, au premier tag de version (`release.yml`).
+  publiée sur ghcr.io, au premier tag de version (`release.yml`) : `v0.1.0` (`package.json` à 0.1.0
+  depuis le 2026-10-26).
 - **Contexte SELinux sur Rocky** (critère de sortie) : la règle `httpd_sys_content_t` est enregistrée
   par le paquet (`semanage fcontext`, vérifié en CI), mais son application aux fichiers ne se vérifie
   pas dans un conteneur, où SELinux est désactivé. À constater sur un hôte Rocky réel, sinon à
@@ -94,6 +95,11 @@ deux points ouverts (réglages du dépôt GitHub et première image sur ghcr.io 
 constaté sur un hôte Rocky réel) relèvent de l'exploitation et ne touchent pas le code des parseurs
 de M1. Ils restent à fermer avant de commencer M2 ; la case et le critère de sortie restent décochés
 d'ici là.
+
+**Seconde dérogation (décision du porteur, 2026-10-26)** : faute d'hôte Rocky disponible pour le
+développement, le constat du contexte SELinux sur un hôte réel est reporté ; il ne bloque pas M2 et
+sera fait au plus tard avant la version 1.0 (M10). Le critère de sortie reste décoché d'ici là. Seuls
+les réglages du dépôt GitHub et la première image sur ghcr.io restent à fermer avant M2.
 
 Critère de sortie, en CI, pour chacun des trois livrables :
 - `.deb` (Debian 12 et 13) et `.rpm` (Rocky 9 et 10) dans un conteneur avec systemd : installation, puis
@@ -344,6 +350,10 @@ Exigences `docs/11` : SEC-06 (rotation d'urgence + runbook + exercice e2e), SEC-
 ## M10 : Durcissement et version 1.0
 
 Exigences `docs/11` : revue de **toutes** les exigences SEC-01 à SEC-30 (chacune fermée par son test), décision SEC-07 appliquée, SEC-24 (attestations SLSA, reproductibilité).
+
+Reporté de M0 (seconde dérogation) : installer `lockmaster-repo` sur des hôtes Rocky 9 et 10 réels,
+SELinux en mode `Enforcing`, et constater `httpd_sys_content_t` sur `/srv/lockmaster-repo`
+(`ls -Zd`) ; puis cocher le critère de sortie de M0.
 
 - [ ] Fuzzing long sur tous les parseurs (30 min chacun) sans échec
 - [ ] Revue `/revue-securite all` sans constat bloquant ; checklist `docs/10-tests.md`
