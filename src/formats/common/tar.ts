@@ -127,6 +127,9 @@ function readHeader(header: Uint8Array, offset: number): RawHeader {
   if (!posix && magic !== 'ustar  \0') throw invalid(offset, 'magie ustar absente');
   if (!checksumMatches(header)) throw invalid(offset, 'somme de contrôle fausse');
   const name = text(header.subarray(0, 100), offset);
+  // Sous la magie GNU, la zone 345-500 n'est pas un préfixe pour GNU tar, mais apk-tools l'y lit quand
+  // elle n'est pas vide (src/io_archive.c) : elle doit être nulle pour que tous lisent le même nom.
+  if (!posix && header[345] !== 0) throw invalid(offset, 'zone de préfixe non nulle sous la magie GNU');
   const prefix = posix ? text(header.subarray(345, 500), offset) : '';
   return {
     path: prefix === '' ? name : `${prefix}/${name}`,

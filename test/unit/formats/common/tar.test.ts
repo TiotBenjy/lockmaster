@@ -258,6 +258,8 @@ describe('parseTar', () => {
     ['pax sans longueur', [{ path: 'P', type: 'x', data: ' path=x\n' }, { path: 'a' }]],
     ['pax avec un octet nul', [{ path: 'P', type: 'x', data: '12 path=a\0b\n' }, { path: 'a' }]],
     ['magie absente (tar v7)', v7Header()],
+    // apk-tools utilise le préfixe dès qu'il n'est pas vide, même sous la magie GNU.
+    ['magie GNU avec préfixe', buildTar([{ path: 'postinst', format: 'gnu', prefix: 'x', data: 'x' }])],
     ['taille en base 256 hors limites', base256Overflow()],
   ];
 
