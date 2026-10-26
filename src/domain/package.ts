@@ -3,8 +3,8 @@
 
 export type PackageFormatName = 'deb' | 'rpm' | 'apk';
 
-/** Opérateurs de version normalisés : `<<`/`LT`/`<` -> lt, etc. */
-export type VersionOperator = 'lt' | 'le' | 'eq' | 'ge' | 'gt';
+/** Opérateurs de version normalisés : `<<`/`LT`/`<` -> lt, etc. ; `fuzzy` = « ~ » d'APK (même préfixe de version). */
+export type VersionOperator = 'lt' | 'le' | 'eq' | 'ge' | 'gt' | 'fuzzy';
 
 export interface Relation {
   readonly name: string;
@@ -43,6 +43,10 @@ export interface ParsedPackage {
   readonly replaces: readonly Relation[];
   /** Liste des fichiers (RPM) ; non requise pour deb et apk. */
   readonly files?: readonly string[];
+  /** APK : identifiant `C:` de l'APKINDEX (`Q1` + base64 du sha1 du membre contrôle compressé). */
+  readonly indexChecksum?: string;
+  /** APK : signatures présentes (algorithme, nom de la clé publique attendue). */
+  readonly signatures?: readonly { readonly algorithm: string; readonly keyName: string }[];
   /** RPM : octets de l'en-tête principal dans le fichier (`rpm:header-range` de primary.xml). */
   readonly headerRange?: { readonly start: number; readonly end: number };
   readonly sourceName?: string;

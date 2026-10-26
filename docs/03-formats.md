@@ -272,18 +272,36 @@ permettrait à un serveur de dépôt compromis d'imposer sa clé.
 
 ### 4.1 Lecture d'un `.apk`
 
-Un `.apk` v2 est une concaténation de flux gzip : [signature] + contrôle + données.
-1. Découper les membres gzip **sans tout décompresser en mémoire** (décompression en flux,
-   détection de fin de membre). Limites : <= 3 membres, contrôle <= 10 MiB décompressé.
-2. Membre signature (optionnel) : tar contenant `.SIGN.RSA.<keyname>.rsa.pub` (SHA-1) ou
-   `.SIGN.RSA256.<keyname>.rsa.pub` (SHA-256), signature du **membre contrôle compressé**.
-3. Membre contrôle : tar (sans bloc de fin) contenant `.PKGINFO` (`clé = valeur`) et scripts
-   `.pre-install`, `.post-install`, `.pre-upgrade`, `.post-upgrade`, `.pre-deinstall`,
-   `.post-deinstall`, `.trigger`. Champs `.PKGINFO` : `pkgname`, `pkgver`, `arch`, `size`,
-   `pkgdesc`, `url`, `license`, `origin`, `maintainer`, `builddate`, `depend`, `provides`,
-   `install_if`, `datahash` (sha256 du membre données).
-4. Vérifier `datahash` contre le SHA-256 du membre données (lu en flux, non extrait).
-5. Le `C:` de l'APKINDEX = `Q1` + base64(SHA-1 du membre contrôle compressé).
+Un `.apk` v2 est une concaténation de membres gzip : [signature] + contrôle + données
+(`src/formats/apk/`, lecture d'apk-tools 2.14 `src/package.c`). apk lit l'ensemble comme un seul
+flux tar ; les frontières de membres ne servent qu'aux empreintes. Ici chaque membre doit contenir
+exactement sa partie, pour que notre lecture et celle d'apk coïncident.
+1. Les membres de signature et de contrôle sont lus un à un (`common/gzip-member.ts` : en-tête RFC
+   1952 analysé, deflate par `node:zlib`, longueur compressée exacte, CRC32 et ISIZE vérifiés),
+   chacun au plus `maxControlBytes` (10 MiB) décompressé. Les données ne sont jamais décompressées
+   par `parse` : seulement hachées.
+2. Membre signature (facultatif) : premier membre dont **toutes** les entrées sont des fichiers
+   `.SIGN.(RSA512|RSA256|RSA|DSA).<clé>` (au plus 64 Kio chacun, nom de clé `[A-Za-z0-9][A-Za-z0-9._@+-]*`).
+   La signature porte sur le **membre contrôle compressé**. Algorithme et nom de clé sont exposés
+   (`ParsedPackage.signatures`) ; la vérification cryptographique relève du pipeline (M4/M5).
+3. Membre contrôle : tar sans blocs de fin, uniquement des fichiers ordinaires aux noms exacts
+   `.PKGINFO` (obligatoire) et `.pre-install`, `.post-install`, `.pre-deinstall`,
+   `.post-deinstall`, `.pre-upgrade`, `.post-upgrade`, `.trigger` (ordre d'`apk_script_types`),
+   sans doublon. Tout autre nom (`./.PKGINFO`, `.INSTALL`, `.SIGN.*`, fichier de données) est refusé.
+4. `.PKGINFO` : UTF-8, lignes `clé = valeur`, commentaires `#` ; refusés : ligne sans « = », clé
+   simple répétée (apk garderait la dernière), caractère de contrôle. Seules `depend`, `provides`,
+   `replaces`, `install_if`, `triggers` se répètent. Obligatoires : `pkgname`, `pkgver` (version APK
+   valide), `arch` (`[a-z0-9_]+`), `datahash` (64 hexadécimaux). Nombres (`size`, `builddate`...)
+   décimaux. Dépendances `[!]nom[@étiquette][op version]`, `op` parmi `< <= = >= > ~` (`~` ->
+   `fuzzy`) ; `!` -> `conflicts` ; `provides` sans opérateur autre que `=`, `replaces` sans version.
+   `install_if` est validé et gardé brut (signal SEC-02). Sans `origin`, la source est le paquet.
+5. `datahash` = SHA-256 de **tout ce qui suit le membre contrôle** (un ou plusieurs membres de
+   données), comparé en flux. Un paquet sans `datahash` (ancien format où la signature couvre aussi
+   les données) est refusé.
+6. Identifiant `C:` de l'APKINDEX = `Q1` + base64(SHA-1 du membre contrôle compressé)
+   (`ParsedPackage.indexChecksum`), indépendant du membre signature.
+7. Flux internes pour l'antivirus (SEC-01) : `control.tar` puis `data.tar` décompressés ; des octets
+   après le dernier membre gzip font échouer l'analyse (fail closed).
 
 ### 4.2 Arborescence publiée
 
