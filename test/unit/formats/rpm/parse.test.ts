@@ -116,6 +116,34 @@ describe('parseRpm : métadonnées', () => {
     ['opérateur sans version', { tags: [{ tag: 1055, type: TYPE.STRING_ARRAY, value: [''] }] }],
     ['nom de dépendance vide', { tags: [{ tag: 1054, type: TYPE.STRING_ARRAY, value: [''] }] }],
     ['indice de dossier hors limites', { tags: [{ tag: 1116, type: TYPE.INT32, value: [5] }] }],
+    // Chaînes traduites : rpm choisit la traduction selon la locale du client (copyI18NEntry).
+    ['NAME en I18NSTRING', { tags: [{ tag: 1000, type: TYPE.I18N, value: ['hello'] }] }],
+    ['NAME en STRING_ARRAY', { tags: [{ tag: 1000, type: TYPE.STRING_ARRAY, value: ['hello'] }] }],
+    ['ARCH en I18NSTRING', { tags: [{ tag: 1022, type: TYPE.I18N, value: ['x86_64'] }] }],
+    ['POSTIN en I18NSTRING', { tags: [{ tag: 1024, type: TYPE.I18N, value: ['echo a'] }] }],
+    ['REQUIRENAME en I18NSTRING', { tags: [{ tag: 1049, type: TYPE.I18N, value: ['a', 'b', 'c'] }] }],
+    [
+      'table de traductions à deux locales',
+      {
+        tags: [
+          { tag: 100, type: TYPE.STRING_ARRAY, value: ['C', 'fr'] },
+          { tag: 1004, type: TYPE.I18N, value: ['un', 'deux'] },
+        ],
+      },
+    ],
+    ['résumé traduit en deux chaînes', { tags: [{ tag: 1004, type: TYPE.I18N, value: ['un', 'deux'] }] }],
+    // Caractères interdits en XML 1.0 (primary.xml, filelists.xml) et chemins non canoniques.
+    ['nom de fichier avec un caractère de contrôle', { files: [{ name: './usr/bin/a\u0001b' }] }],
+    ['description avec U+FFFF', { tags: [{ tag: 1005, type: TYPE.I18N, value: ['a\uffffb'] }] }],
+    ['licence avec U+FFFE', { tags: [{ tag: 1014, type: TYPE.STRING, value: 'MIT\ufffe' }] }],
+    ['nom de relation avec U+FFFF', { tags: [{ tag: 1054, type: TYPE.STRING_ARRAY, value: ['a\uffff'] }] }],
+    ['dossier sans / initial', { tags: [{ tag: 1118, type: TYPE.STRING_ARRAY, value: ['usr/bin/'] }] }],
+    ['dossier sans / final', { tags: [{ tag: 1118, type: TYPE.STRING_ARRAY, value: ['/usr/bin'] }] }],
+    ['dossier avec //', { tags: [{ tag: 1118, type: TYPE.STRING_ARRAY, value: ['/etc//cron.d/'] }] }],
+    ['dossier avec /./', { tags: [{ tag: 1118, type: TYPE.STRING_ARRAY, value: ['/etc/./cron.d/'] }] }],
+    ['dossier avec /../', { tags: [{ tag: 1118, type: TYPE.STRING_ARRAY, value: ['/usr/../etc/'] }] }],
+    ['nom de base avec /', { tags: [{ tag: 1117, type: TYPE.STRING_ARRAY, value: ['a/b'] }] }],
+    ['nom de base ..', { tags: [{ tag: 1117, type: TYPE.STRING_ARRAY, value: ['..'] }] }],
     ['noms et indices de fichiers inégaux', { tags: [{ tag: 1116, type: TYPE.INT32, value: [0, 0] }] }],
   ])('refuse : %s (FORMAT_INVALID)', async (_label, spec) => {
     expect(await codeOf(buildRpm(spec))).toBe('FORMAT_INVALID');
@@ -128,6 +156,7 @@ describe('parseRpm : métadonnées', () => {
   it.each<[string, RpmSpec]>([
     ['PAYLOADDIGEST sans son algorithme', { omit: [5093] }],
     ['SHA256HEADER au mauvais type', { signatureTags: [{ tag: 273, type: TYPE.INT32, value: 1 }] }],
+    ['SHA256HEADER en tableau', { signatureTags: [{ tag: 273, type: TYPE.STRING_ARRAY, value: ['0'] }] }],
     ['SIZE au mauvais type', { signatureTags: [{ tag: 1000, type: TYPE.STRING, value: '12' }] }],
     ['LONGSIZE au-delà de 2^53', { signatureTags: [{ tag: 270, type: TYPE.INT64, value: 2n ** 60n }] }],
   ])('refuse : %s (FORMAT_INVALID)', async (_label, spec) => {
