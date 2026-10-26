@@ -84,6 +84,28 @@ describe('readArMembers', () => {
     expect(await codeOf(archive, 4)).toBe('aucune erreur');
   });
 
+  it('transmet le signal à chaque lecture de la source', async () => {
+    const archive = new BufferSource(
+      buildAr([
+        { name: 'a', data: text('x') },
+        { name: 'b', data: text('yz') },
+      ]),
+    );
+    const signals: (AbortSignal | undefined)[] = [];
+    const spy = {
+      size: archive.size,
+      read: (offset: number, length: number, signal?: AbortSignal) => {
+        signals.push(signal);
+        return archive.read(offset, length, signal);
+      },
+      stream: (offset: number, length: number, signal?: AbortSignal) => archive.stream(offset, length, signal),
+    };
+    const { signal } = new AbortController();
+    await readArMembers(spy, { maxMembers: 8, signal });
+    expect(signals.length).toBeGreaterThan(2);
+    expect(signals.every((received) => received === signal)).toBe(true);
+  });
+
   it("s'arrête sur un signal annulé (FORMAT_ABORTED)", async () => {
     const archive = buildAr([{ name: 'a', data: text('x') }]);
     await expect(

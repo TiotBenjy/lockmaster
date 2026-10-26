@@ -8,6 +8,7 @@ import { createHash, type Hash } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import { at } from '../bytes.js';
 import { FormatError } from '../errors.js';
+import { checkStreamCount } from '../limits.js';
 import { StreamReader } from '../stream-reader.js';
 import { Crc64 } from './crc64.js';
 import { Dictionary } from './dictionary.js';
@@ -40,7 +41,10 @@ export async function* decodeXz(input: AsyncIterable<Uint8Array>, options: XzOpt
   };
   const dictionary = new Dictionary();
   try {
+    let streams = 0;
     do {
+      streams += 1;
+      checkStreamCount(streams, reader.position);
       yield* decodeStream(reader, dictionary, reserve, options);
       await skipStreamPadding(reader);
     } while (!(await reader.atEnd()));

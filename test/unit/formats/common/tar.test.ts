@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { parseTar, safeRelativePath, type TarOptions } from '../../../../src/formats/common/tar.js';
 import { buildTar, paxRecords, type TarSpec, tarEntry } from '../../../fixtures/builders/tar.js';
 
+/** Chemin de plus de 100 octets : le champ ustar n'en garde que le début (comme GNU tar). */
+const LONG = `./${'dossier/'.repeat(14)}fichier`;
+
 const OPTIONS: TarOptions = {
   maxEntries: 16,
   maxEntryBytes: 4096,
@@ -47,10 +50,10 @@ describe('parseTar', () => {
     expect(entry?.path).toBe('un/dossier/fichier');
   });
 
-  it("applique la taille pax à la place de celle de l'en-tête", () => {
+  it("accepte une taille pax égale à celle de l'en-tête ustar", () => {
     const archive = buildTar([
       { path: 'PaxHeader', type: 'x', data: paxRecords({ size: '7' }) },
-      { path: 'a', data: 'contenu', declaredSize: '00000000000\0' },
+      { path: 'a', data: 'contenu' },
     ]);
     expect(text(parseTar(archive, OPTIONS)[0]?.data)).toBe('contenu');
   });
@@ -59,11 +62,11 @@ describe('parseTar', () => {
     const long = `./${'d/'.repeat(80)}fichier`;
     const archive = buildTar([
       { path: 'PaxHeader', type: 'x', data: paxRecords({ path: long, mtime: '1.5' }) },
-      { path: 'tronque', data: 'contenu' },
+      { path: long, data: 'contenu' },
       { path: './@LongLink', type: 'L', data: `${long}-gnu\0`, format: 'gnu' },
-      { path: 'tronque', data: 'gnu', format: 'gnu' },
+      { path: `${long}-gnu`, data: 'gnu', format: 'gnu' },
       { path: 'PaxHeader', type: 'x', data: paxRecords({ linkpath: long }) },
-      { path: './lien', type: '2', linkTarget: 'court' },
+      { path: './lien', type: '2', linkTarget: long },
     ]);
     const entries = parseTar(archive, OPTIONS);
     expect(entries.map((entry) => entry.path)).toEqual([long, `${long}-gnu`, './lien']);
@@ -74,17 +77,93 @@ describe('parseTar', () => {
   it("ignore l'en-tête pax global et n'applique un en-tête pax qu'à l'entrée suivante", () => {
     const archive = buildTar([
       { path: 'global', type: 'g', data: paxRecords({ comment: 'x' }) },
-      { path: 'PaxHeader', type: 'x', data: paxRecords({ path: 'renomme' }) },
-      { path: 'a', data: '1' },
+      { path: 'PaxHeader', type: 'x', data: paxRecords({ path: LONG }) },
+      { path: LONG, data: '1' },
       { path: 'b', data: '2' },
     ]);
-    expect(parseTar(archive, OPTIONS).map((entry) => entry.path)).toEqual(['renomme', 'b']);
+    expect(parseTar(archive, OPTIONS).map((entry) => entry.path)).toEqual([LONG, 'b']);
   });
 
   it('accepte une archive sans blocs de fin si requireEndMarker est faux (contrôle apk)', () => {
     const archive = buildTar([{ path: '.PKGINFO', data: 'pkgname = a\n' }], { endMarker: false });
     expect(codeOf(archive)).toBe('FORMAT_TRUNCATED');
     expect(parseTar(archive, { ...OPTIONS, requireEndMarker: false }).map((entry) => entry.path)).toEqual(['.PKGINFO']);
+  });
+
+  it("refuse un en-tête pax ou GNU qui contredit l'en-tête ustar (lecteurs divergents)", () => {
+    const cases: TarSpec[][] = [
+      [
+        { path: 'P', type: 'x', data: paxRecords({ path: 'cache' }) },
+        { path: './postinst', data: '#!/bin/sh\n' },
+      ],
+      [
+        { path: 'P', type: 'x', data: paxRecords({ path: `${LONG}x` }) },
+        { path: './postinst', data: '#!/bin/sh\n' },
+      ],
+      [
+        { path: 'P', type: 'x', data: paxRecords({ linkpath: 'autre' }) },
+        { path: 'l', type: '2', linkTarget: 'cible' },
+      ],
+      [
+        { path: 'L', type: 'L', data: `${LONG}y\0`, format: 'gnu' },
+        { path: './postinst', format: 'gnu' },
+      ],
+      [
+        { path: 'K', type: 'K', data: 'autre\0', format: 'gnu' },
+        { path: 'l', type: '2', linkTarget: 'cible', format: 'gnu' },
+      ],
+      [
+        { path: 'P', type: 'x', data: paxRecords({ size: '1024' }) },
+        { path: './postinst', data: '#!/bin/sh\n' },
+      ],
+    ];
+    for (const specs of cases) expect(codeOf(buildTar(specs))).toBe('FORMAT_INVALID');
+  });
+
+  it('ne laisse pas une taille pax en attente désynchroniser la lecture (constat de revue)', () => {
+    const script = Buffer.concat([
+      Buffer.from('#!/bin/sh\nrm -rf /\n'.padEnd(512, '\0')),
+      tarEntry({ path: './md5sums' }),
+    ]);
+    const archive = Buffer.concat([
+      tarEntry({ path: './control', data: 'Package: a\n' }),
+      tarEntry({ path: 'P', type: 'x', data: paxRecords({ size: '1024' }) }),
+      tarEntry({ path: 'G', type: 'g', data: '' }),
+      tarEntry({ path: './postinst', data: script }),
+      Buffer.alloc(1024),
+    ]);
+    expect(codeOf(archive)).toBe('FORMAT_INVALID');
+  });
+
+  it('refuse un en-tête étendu répété avant la même entrée', () => {
+    const twice = buildTar([
+      { path: 'P', type: 'x', data: paxRecords({ mtime: '1' }) },
+      { path: 'P', type: 'x', data: paxRecords({ mtime: '2' }) },
+      { path: 'a', data: 'x' },
+    ]);
+    expect(codeOf(twice)).toBe('FORMAT_INVALID');
+  });
+
+  it('refuse un en-tête pax global qui porte path, linkpath ou size', () => {
+    for (const key of ['path', 'linkpath', 'size']) {
+      const archive = buildTar([
+        { path: 'G', type: 'g', data: paxRecords({ [key]: '1' }) },
+        { path: 'a', data: 'x' },
+      ]);
+      expect(codeOf(archive)).toBe('FORMAT_INVALID');
+    }
+  });
+
+  it('refuse des données après le premier bloc nul (entrée cachée)', () => {
+    const hidden = Buffer.concat([
+      tarEntry({ path: '.PKGINFO', data: 'pkgname = a\n' }),
+      Buffer.alloc(512),
+      tarEntry({ path: '.pre-install', data: '#!/bin/sh\n' }),
+    ]);
+    expect(codeOf(hidden, { requireEndMarker: false })).toBe('FORMAT_INVALID');
+    expect(codeOf(Buffer.concat([hidden, Buffer.alloc(1024)]))).toBe('FORMAT_INVALID');
+    const trailing = Buffer.concat([buildTar([{ path: 'a', data: 'x' }]), Buffer.from('déchets')]);
+    expect(codeOf(trailing)).toBe('FORMAT_INVALID');
   });
 
   it('accepte une archive vide (deux blocs nuls) et ignore le remplissage après la fin', () => {
@@ -123,7 +202,7 @@ describe('parseTar', () => {
     const target = `./${'cible/'.repeat(30)}fin`;
     const archive = buildTar([
       { path: './@LongLink', type: 'K', data: `${target}\0`, format: 'gnu' },
-      { path: './lien', type: '2', linkTarget: 'court', format: 'gnu' },
+      { path: './lien', type: '2', linkTarget: target, format: 'gnu' },
     ]);
     expect(parseTar(archive, OPTIONS)[0]?.linkTarget).toBe(target);
   });
@@ -167,9 +246,12 @@ describe('safeRelativePath', () => {
     expect(safeRelativePath(input)).toBe(expected);
   });
 
-  it.each(['/etc/passwd', '../x', './a/../../x', 'a/..', 'a\\b', 'a\nb'])('refuse %s (FORMAT_INVALID)', (input) => {
-    expect(() => safeRelativePath(input)).toThrowError(expect.objectContaining({ code: 'FORMAT_INVALID' }));
-  });
+  it.each(['/etc/passwd', '../x', './a/../../x', 'a/..', 'a\\b', 'a\nb', 'a\u0085b', 'post\u202Einst', 'a\u2066b'])(
+    'refuse %s (FORMAT_INVALID)',
+    (input) => {
+      expect(() => safeRelativePath(input)).toThrowError(expect.objectContaining({ code: 'FORMAT_INVALID' }));
+    },
+  );
 });
 
 function rewriteChecksum(header: Buffer): void {

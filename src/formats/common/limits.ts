@@ -51,8 +51,28 @@ export const DEFAULT_LIMITS: Readonly<FormatLimits> = Object.freeze({
   xzMaxDictionaryBytes: 64 * MiB,
 });
 
-/** Durée maximale d'analyse d'un paquet ; l'appelant en fait un `AbortSignal.timeout`. */
+/**
+ * Durée maximale d'analyse d'un paquet. Les parseurs testent un `AbortSignal` entre deux étapes,
+ * mais un décodage qui ne rend jamais la main à la boucle d'événements ne voit pas un minuteur se
+ * déclencher : l'échéance est imposée par le pool de workers (`worker.terminate()` depuis le fil
+ * principal, docs/01 §4), le signal ne sert qu'à l'annulation coopérative.
+ */
 export const PARSE_TIMEOUT_MS = 30_000;
+
+/**
+ * Octets compressés minimum par flux concaténé (xz, bzip2) : un flux vide coûte du calcul sans
+ * produire de sortie, donc sans être vu par le ratio. Un flux réel fait bien plus de 1 Kio ; les
+ * `FREE_STREAMS` premiers flux sont admis quelle que soit leur taille.
+ */
+export const MIN_BYTES_PER_STREAM = 1024;
+const FREE_STREAMS = 8;
+
+/** Lève FORMAT_LIMIT_EXCEEDED si `streams` flux pour `consumedBytes` octets lus est excessif. */
+export function checkStreamCount(streams: number, consumedBytes: number): void {
+  if (streams > FREE_STREAMS + Math.floor(consumedBytes / MIN_BYTES_PER_STREAM)) {
+    throw new FormatError('FORMAT_LIMIT_EXCEEDED', 'trop de flux concaténés pour la taille des données');
+  }
+}
 
 /**
  * Sortie autorisée pour un flux de `compressedBytes` octets : ratio maximal, au moins le plancher,

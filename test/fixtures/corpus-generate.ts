@@ -3,12 +3,17 @@
 // et le manifeste sont commités ; les tests ne lancent jamais ces outils.
 // Usage : pnpm exec tsx test/fixtures/corpus-generate.ts && pnpm biome check --write test/fixtures/corpus
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PAYLOADS, type PayloadName } from './builders/payloads.js';
 
 const ROOT = join(import.meta.dirname, 'corpus', 'compression');
 const TOOLS = { xz: '/usr/bin/xz', bzip2: '/usr/bin/bzip2' } as const;
+const TAR = '/usr/bin/tar';
+const TAR_ROOT = join(import.meta.dirname, 'corpus', 'tar');
+/** Dossier de 121 octets : le chemin du fichier dépasse les 100 octets du champ ustar. */
+const TAR_LONG_DIR = `${'d'.repeat(60)}/${'e'.repeat(60)}`;
 
 export interface CorpusEntry {
   readonly file: string;
@@ -132,4 +137,54 @@ function main(): void {
   writeFileSync(join(ROOT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
-main();
+/** Arborescence de contrôle type : fichiers, script exécutable, liens, chemin et cible longs. */
+function buildTree(root: string): void {
+  writeFileSync(join(root, 'control'), 'Package: exemple\n');
+  writeFileSync(join(root, 'postinst'), '#!/bin/sh\nexit 0\n');
+  chmodSync(join(root, 'control'), 0o644);
+  chmodSync(join(root, 'postinst'), 0o755);
+  symlinkSync('control', join(root, 'lien'));
+  mkdirSync(join(root, TAR_LONG_DIR), { recursive: true });
+  writeFileSync(join(root, TAR_LONG_DIR, 'fichier'), 'profond\n');
+  chmodSync(join(root, TAR_LONG_DIR, 'fichier'), 0o644);
+  for (const dir of ['.', 'd'.repeat(60), TAR_LONG_DIR]) chmodSync(join(root, dir), 0o755);
+  symlinkSync(`${TAR_LONG_DIR}/fichier`, join(root, 'lien-long'));
+}
+
+/** Archives GNU tar de référence (formats gnu, pax, ustar), reproductibles (dates, propriétaires). */
+function generateTar(): void {
+  rmSync(TAR_ROOT, { recursive: true, force: true });
+  mkdirSync(TAR_ROOT, { recursive: true });
+  const tree = mkdtempSync(join(tmpdir(), 'lockmaster-tar-'));
+  try {
+    buildTree(tree);
+    const common = ['--sort=name', '--mtime=@0', '--owner=0', '--group=0', '--numeric-owner', '-C', tree, '-cf', '-'];
+    const all = ['.'];
+    // ustar ne sait pas écrire une cible de lien de plus de 100 octets : lien-long est omis.
+    const ustarFiles = [
+      './control',
+      './d'.concat('d'.repeat(59)),
+      `./${TAR_LONG_DIR}`,
+      `./${TAR_LONG_DIR}/fichier`,
+      './lien',
+      './postinst',
+    ];
+    const archives: [string, string[]][] = [
+      ['gnu', ['--format=gnu', ...common, ...all]],
+      ['pax', ['--format=pax', '--pax-option=delete=atime,delete=ctime', ...common, ...all]],
+      ['ustar', ['--format=ustar', '--no-recursion', ...common, ...ustarFiles]],
+    ];
+    for (const [name, args] of archives) {
+      const bytes = execFileSync(TAR, args, { shell: false, env: { PATH: '/usr/bin', LC_ALL: 'C' } });
+      writeFileSync(join(TAR_ROOT, `${name}.tar`), bytes);
+    }
+  } finally {
+    rmSync(tree, { recursive: true, force: true });
+  }
+}
+
+// Seulement lancé directement : les tests importent les types de ce module sans le régénérer.
+if (import.meta.main) {
+  main();
+  generateTar();
+}

@@ -88,6 +88,18 @@ describe('decompress', () => {
     expect(await codeOf(() => decompressToBuffer(failing(), 'gzip', options))).toBe('FORMAT_TRUNCATED');
   });
 
+  it.each(['gzip', 'zstd'] as const)(
+    "%s : une panne de la source (EIO) n'est pas attribuée au paquet",
+    async (compression) => {
+      const failure = Object.assign(new Error('lecture impossible'), { code: 'EIO' });
+      async function* broken(): AsyncGenerator<Uint8Array> {
+        yield gzipSync(Buffer.from('début')).subarray(0, 4);
+        throw failure;
+      }
+      await expect(decompressToBuffer(broken(), compression, options)).rejects.toBe(failure);
+    },
+  );
+
   it("s'arrête sur un signal annulé (FORMAT_ABORTED)", async () => {
     const signal = AbortSignal.abort();
     const code = await codeOf(() => decompressToBuffer(chunked(gzipSync(payload)), 'gzip', { ...options, signal }));

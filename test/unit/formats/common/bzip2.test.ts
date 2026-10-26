@@ -69,6 +69,15 @@ describe('décodeur bzip2 : données corrompues', () => {
 });
 
 describe('décodeur bzip2 : limites', () => {
+  it('refuse une avalanche de flux vides concaténés (amplification CPU, FORMAT_LIMIT_EXCEEDED)', async () => {
+    const empty = corpusFile('bzip2/empty.bz2');
+    const many = Buffer.concat(Array.from({ length: 10_000 }, () => empty));
+    const started = performance.now();
+    expect(await codeOf(() => decode(many))).toBe('FORMAT_LIMIT_EXCEEDED');
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect((await decode(Buffer.concat([empty, empty]))).length).toBe(0);
+  });
+
   it('refuse une sortie au-delà du budget (FORMAT_LIMIT_EXCEEDED)', async () => {
     const zeros = corpusFile('bzip2/zeros.bz2');
     expect(await codeOf(() => decode(zeros, { maxOutputBytes: 2 * MiB }))).toBe('FORMAT_LIMIT_EXCEEDED');
