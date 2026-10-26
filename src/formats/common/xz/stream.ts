@@ -17,7 +17,7 @@ import { Lzma2Decoder, type ReserveOutput } from './lzma2.js';
 export interface XzOptions {
   readonly maxOutputBytes: number;
   readonly maxDictionaryBytes: number;
-  readonly signal?: AbortSignal;
+  readonly signal?: AbortSignal | undefined;
 }
 
 const HEADER_MAGIC = [0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00];

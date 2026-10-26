@@ -16,7 +16,7 @@ export interface DecompressOptions {
   /** Sortie maximale, en général `decompressionBudget(...)`. */
   readonly maxOutputBytes: number;
   readonly limits: FormatLimits;
-  readonly signal?: AbortSignal;
+  readonly signal?: AbortSignal | undefined;
 }
 
 type Decoder = (input: AsyncIterable<Uint8Array>, options: DecompressOptions) => AsyncIterable<Uint8Array>;
@@ -34,12 +34,12 @@ const DECODERS: Readonly<Record<Compression, Decoder>> = Object.freeze({
     decodeXz(input, {
       maxOutputBytes: options.maxOutputBytes,
       maxDictionaryBytes: options.limits.xzMaxDictionaryBytes,
-      ...(options.signal ? { signal: options.signal } : {}),
+      signal: options.signal,
     }),
   bzip2: (input, options) =>
     decodeBzip2(input, {
       maxOutputBytes: options.maxOutputBytes,
-      ...(options.signal ? { signal: options.signal } : {}),
+      signal: options.signal,
     }),
 });
 

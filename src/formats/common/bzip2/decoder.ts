@@ -12,7 +12,7 @@ import { BitReader, corrupt, HuffmanTable, MAX_CODE_LENGTH } from './bits.js';
 
 export interface Bzip2Options {
   readonly maxOutputBytes: number;
-  readonly signal?: AbortSignal;
+  readonly signal?: AbortSignal | undefined;
 }
 
 const BLOCK_MAGIC = 0x314159265359;
