@@ -4,6 +4,7 @@
 // POSIX `pax` (IEEE Std 1003.1-2017, section ustar Interchange Format et pax Header Block), GNU tar
 // manual « Basic Tar Format ». Aucun fichier n'est créé : les entrées sont rendues en mémoire.
 
+import { at } from './bytes.js';
 import { FormatError, throwIfAborted } from './errors.js';
 
 export type TarEntryType = 'file' | 'directory' | 'symlink' | 'hardlink' | 'character-device' | 'block-device' | 'fifo';
@@ -106,7 +107,7 @@ function readHeader(header: Uint8Array, offset: number): RawHeader {
   return {
     path: prefix === '' ? name : `${prefix}/${name}`,
     linkTarget: text(header.subarray(157, 257), offset),
-    typeflag: String.fromCharCode(header[156] ?? 0),
+    typeflag: String.fromCharCode(at(header, 156)),
     mode: octalNumber(header.subarray(100, 108), offset) & 0o7777,
     size: sizeField(header.subarray(124, 136), offset),
   };
@@ -176,7 +177,7 @@ function checksumMatches(header: Uint8Array): boolean {
   let unsigned = 0;
   let signed = 0;
   for (let index = 0; index < BLOCK; index += 1) {
-    const byte = index >= 148 && index < 156 ? 0x20 : (header[index] ?? 0);
+    const byte = index >= 148 && index < 156 ? 0x20 : at(header, index);
     unsigned += byte;
     signed += byte > 0x7f ? byte - 0x100 : byte;
   }

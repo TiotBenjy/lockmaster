@@ -47,6 +47,14 @@ describe('parseTar', () => {
     expect(entry?.path).toBe('un/dossier/fichier');
   });
 
+  it("applique la taille pax à la place de celle de l'en-tête", () => {
+    const archive = buildTar([
+      { path: 'PaxHeader', type: 'x', data: paxRecords({ size: '7' }) },
+      { path: 'a', data: 'contenu', declaredSize: '00000000000\0' },
+    ]);
+    expect(text(parseTar(archive, OPTIONS)[0]?.data)).toBe('contenu');
+  });
+
   it('applique les en-têtes pax (path, linkpath, size) et les noms longs GNU', () => {
     const long = `./${'d/'.repeat(80)}fichier`;
     const archive = buildTar([
@@ -105,8 +113,20 @@ describe('parseTar', () => {
     ['pax sans « = »', [{ path: 'P', type: 'x', data: '7 path\n' }, { path: 'a' }]],
     ['taille pax non décimale', [{ path: 'P', type: 'x', data: paxRecords({ size: '1e3' }) }, { path: 'a' }]],
     ["pax en fin d'archive", [{ path: 'P', type: 'x', data: paxRecords({ path: 'x' }) }]],
+    ['pax sans longueur', [{ path: 'P', type: 'x', data: ' path=x\n' }, { path: 'a' }]],
+    ['pax avec un octet nul', [{ path: 'P', type: 'x', data: '12 path=a\0b\n' }, { path: 'a' }]],
     ['magie absente (tar v7)', v7Header()],
+    ['taille en base 256 hors limites', base256Overflow()],
   ];
+
+  it('applique un nom de lien long GNU (K)', () => {
+    const target = `./${'cible/'.repeat(30)}fin`;
+    const archive = buildTar([
+      { path: './@LongLink', type: 'K', data: `${target}\0`, format: 'gnu' },
+      { path: './lien', type: '2', linkTarget: 'court', format: 'gnu' },
+    ]);
+    expect(parseTar(archive, OPTIONS)[0]?.linkTarget).toBe(target);
+  });
 
   it.each(malformed)('rejette : %s (FORMAT_INVALID)', (_label, specs) => {
     const bytes = specs instanceof Uint8Array ? specs : buildTar(specs);
@@ -156,6 +176,14 @@ function rewriteChecksum(header: Buffer): void {
   header.fill(0x20, 148, 156);
   const sum = header.subarray(0, 512).reduce((total, byte) => total + byte, 0);
   header.write(`${sum.toString(8).padStart(6, '0')}\0 `, 148, 8, 'latin1');
+}
+
+function base256Overflow(): Uint8Array {
+  const entry = Buffer.from(tarEntry({ path: 'gros', data: 'abc', format: 'gnu' }));
+  entry.fill(0xff, 124, 136);
+  entry[124] = 0x80;
+  rewriteChecksum(entry);
+  return Buffer.concat([entry, Buffer.alloc(1024)]);
 }
 
 function v7Header(): Uint8Array {

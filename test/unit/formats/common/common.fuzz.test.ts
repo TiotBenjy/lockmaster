@@ -9,6 +9,7 @@ import { BufferSource } from '../../../../src/formats/common/source.js';
 import { parseTar } from '../../../../src/formats/common/tar.js';
 import { buildAr } from '../../../fixtures/builders/ar.js';
 import { buildTar } from '../../../fixtures/builders/tar.js';
+import { corpusFile } from './corpus.js';
 
 const runs = Number(process.env['FC_NUM_RUNS'] ?? 300);
 const TAR_OPTIONS = { maxEntries: 32, maxEntryBytes: 64 * 1024, maxExtendedHeaderBytes: 4096, requireEndMarker: true };
@@ -86,6 +87,24 @@ describe('formats/common (propriétés)', () => {
         }
       }),
       { numRuns: runs },
+    );
+  });
+
+  it.each([
+    ['xz', 'xz/text-crc64.xz'],
+    ['xz', 'xz/mixed-lc1-lp3-pb0.xz'],
+    ['bzip2', 'bzip2/text-1.bz2'],
+  ] as const)("le décodeur %s ne lève qu'une FormatError sur un flux muté (%s)", async (compression, file) => {
+    const options = { maxOutputBytes: 300 * 1024, limits: DEFAULT_LIMITS };
+    await fc.assert(
+      fc.asyncProperty(mutated(corpusFile(file)), async (bytes) => {
+        try {
+          expect((await decompressToBuffer(once(bytes), compression, options)).length).toBeLessThanOrEqual(300 * 1024);
+        } catch (error) {
+          expectTypedFailure(error);
+        }
+      }),
+      { numRuns: Math.max(20, Math.floor(runs / 10)) },
     );
   });
 });
