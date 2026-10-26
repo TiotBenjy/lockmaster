@@ -1,6 +1,7 @@
 # ADR-0007 : Livraison : paquets .deb / .rpm et image OCI (Docker & Podman)
 
-- Statut : accepté, complété par ADR-0008 (livrables du serveur de dépôt)
+- Statut : accepté, complété par ADR-0008 (livrables du serveur de dépôt) et par ADR-0013 (même
+  arborescence dans les paquets et dans l'image)
 - Date : 2026-10-19
 
 ## Contexte
