@@ -56,9 +56,9 @@ comprises. D'où deux rulesets, chacun sur `main` **et** `dev` :
    - liste de contournement : le propriétaire, en mode **« pull requests seulement »** (il fusionne
      ses propres PR sans approbation, jamais par un `push` direct).
 2. **« Intégrité »**, **sans aucun contournement** :
-   - vérifications obligatoires : les jobs de `CI` (« Vérifications et tests », « Configurations de
-     déploiement », « Paquets et image », les tests de livrables), « CodeQL » et « Revue des
-     dépendances » ; branche à jour avant fusion ;
+   - vérifications obligatoires : les jobs de `CI` (« Vérifications et tests », « Tests e2e »,
+     « Configurations de déploiement », « Paquets et image », les tests de livrables), « CodeQL » et
+     « Revue des dépendances » ; branche à jour avant fusion ;
    - pas de `force push`, pas de suppression.
 
 Une PR rouge ne peut donc être fusionnée par personne. `release.yml` repasse de plus toutes les
