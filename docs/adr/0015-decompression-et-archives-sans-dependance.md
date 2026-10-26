@@ -86,12 +86,14 @@ inconnue lève une `LockmasterError` au code stable, jamais un résultat partiel
 
 ## Conséquences
 
-- Code : `src/formats/common/` contient `xz/`, `bzip2.ts`, `tar.ts`, `decompress.ts` (interface
-  commune à tous les algorithmes) et `limits.ts`. Le portage xz représente environ 2 000 lignes de C ;
-  il est découpé en fichiers de moins de 400 lignes.
-- Performance : un décodeur LZMA2 en JavaScript est plus lent que liblzma ; il tourne dans le pool de
-  workers (`docs/01` §4). À mesurer sur un gros `data.tar.xz` ; un écart gênant se traitera par un
-  nouvel ADR, pas par un retour discret à une dépendance.
+- Code : `src/formats/common/` contient `xz/`, `bzip2/`, `tar.ts`, `decompress.ts` (interface
+  commune à tous les algorithmes) et `limits.ts`. Le portage xz (environ 2 000 lignes de C) est
+  découpé en fichiers de moins de 400 lignes.
+- Performance : les décodeurs JavaScript sont plus lents que les outils natifs ; ils tournent dans le
+  pool de workers (`docs/01` §4). Mesure du 2026-10-26 (Node 24, une archive tar de bibliothèques
+  système, sortie identique à l'original) : xz 13,8 Mio/s contre 45 Mio/s pour `xz -d` ; bzip2
+  7,8 Mio/s contre 18 Mio/s pour `bzip2 -d`. Un écart gênant se traitera par un nouvel ADR, pas par
+  un retour discret à une dépendance.
 - Tests : vecteurs produits par les vrais outils en développement (`xz`, `bzip2` : flux de test
   commités sous `test/fixtures/corpus/`, générés par un script), corpus malformé (flux tronqué, CRC
   faux, dictionnaire excessif, filtre inconnu, bloc bzip2 trop grand), propriétés fast-check (aucune

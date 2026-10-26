@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { asCompression, decompress, decompressToBuffer } from '../../../../src/formats/common/decompress.js';
 import { FormatError } from '../../../../src/formats/common/errors.js';
 import { DEFAULT_LIMITS } from '../../../../src/formats/common/limits.js';
+import { corpusFile } from './corpus.js';
 
 const MiB = 1024 * 1024;
 
@@ -112,3 +113,15 @@ function corruptTrailer(gzip: Buffer): Buffer {
   copy[crcOffset] = (copy[crcOffset] ?? 0) ^ 0xff;
   return copy;
 }
+
+describe('decompress avec un signal actif', () => {
+  it.each([
+    ['zstd', zstdCompressSync(Buffer.from('signal actif'))],
+    ['xz', corpusFile('xz/empty.xz')],
+    ['bzip2', corpusFile('bzip2/empty.bz2')],
+  ] as const)("%s décode normalement tant que le signal n'est pas déclenché", async (compression, input) => {
+    const { signal } = new AbortController();
+    const output = await decompressToBuffer(chunked(input), compression, { ...options, signal });
+    expect(output.length).toBeLessThanOrEqual(12);
+  });
+});

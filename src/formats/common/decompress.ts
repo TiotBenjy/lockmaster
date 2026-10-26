@@ -6,10 +6,12 @@
 import { Readable, type Transform } from 'node:stream';
 import { constants, createGunzip, createZstdDecompress } from 'node:zlib';
 import { LockmasterError } from '../../domain/errors.js';
+import { decodeBzip2 } from './bzip2/decoder.js';
 import { FormatError, throwIfAborted } from './errors.js';
 import { type FormatLimits, OutputMeter } from './limits.js';
+import { decodeXz } from './xz/stream.js';
 
-export type Compression = 'none' | 'gzip' | 'zstd';
+export type Compression = 'none' | 'gzip' | 'zstd' | 'xz' | 'bzip2';
 
 export interface DecompressOptions {
   /** Sortie maximale, en général `decompressionBudget(...)`. */
@@ -29,6 +31,17 @@ const DECODERS: Readonly<Record<Compression, Decoder>> = Object.freeze({
       createZstdDecompress({ params: { [constants.ZSTD_d_windowLogMax]: options.limits.zstdWindowLog } }),
       'zstd',
     ),
+  xz: (input, options) =>
+    decodeXz(input, {
+      maxOutputBytes: options.maxOutputBytes,
+      maxDictionaryBytes: options.limits.xzMaxDictionaryBytes,
+      ...(options.signal ? { signal: options.signal } : {}),
+    }),
+  bzip2: (input, options) =>
+    decodeBzip2(input, {
+      maxOutputBytes: options.maxOutputBytes,
+      ...(options.signal ? { signal: options.signal } : {}),
+    }),
 });
 
 /** Nom d'algorithme venant d'un paquet -> `Compression`, ou `FORMAT_UNSUPPORTED_COMPRESSION`. */
