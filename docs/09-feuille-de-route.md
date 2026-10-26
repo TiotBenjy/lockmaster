@@ -114,16 +114,28 @@ Critère de sortie, en CI, pour chacun des trois livrables :
 
 Exigences `docs/11` : SEC-22 (mémoire des décompresseurs : fenêtre zstd, limite xz), SEC-01 (décompression en flux de control/data tar, payload cpio, membres apk, réutilisée par le scan).
 
-- [ ] `formats/common` : lecteur ar, lecteur tar maison, gzip/zstd (`node:zlib`), décodeurs xz
+- [x] `formats/common` : lecteur ar, lecteur tar maison, gzip/zstd (`node:zlib`), décodeurs xz
       (portage d'xz-embedded) et bzip2 maison (ADR-0015), `limits.ts` avec compteur de ratio
-- [ ] `formats/deb` : parse `.deb` -> `ParsedPackage` ; parseur/sérialiseur RFC 822 Debian ;
+- [x] `formats/deb` : parse `.deb` -> `ParsedPackage` ; parseur/sérialiseur RFC 822 Debian ;
       `compareDebVersion` + vecteurs dpkg
-- [ ] `formats/rpm` : lead, signature header, header ; tags nécessaires ; `headerRange` ;
+- [x] `formats/rpm` : lead, signature header, header ; tags nécessaires ; `headerRange` ;
       `rpmvercmp` + vecteurs rpm
-- [ ] `formats/apk` : découpe des membres gzip, `.PKGINFO`, vérification `datahash`, `C:` ;
+- [x] `formats/apk` : découpe des membres gzip, `.PKGINFO`, vérification `datahash`, `C:` ;
       `compareApkVersion` + vecteurs apk-tools
-- [ ] Générateur de fixtures `test/fixtures/build.ts` + corpus malformé ; tests fast-check
+- [x] Générateur de fixtures `test/fixtures/build.ts` + corpus malformé ; tests fast-check
       (aucune exception non typée, limites respectées) ; couverture >= 90 %
+
+État au 2026-10-26 : critères atteints, avec deux écarts de forme. Les générateurs sont un module par
+format dans `test/fixtures/builders/` (et non un seul `build.ts`), et les cas malformés sont générés
+dans les tests de chaque format (le corpus sur disque `test/fixtures/corpus/` ne contient que des
+fichiers produits par de vrais outils) : `docs/10` §Fixtures décrit cette organisation. Couverture de
+`src/formats` : 100 % des lignes et des branches. Au-delà des critères, `pnpm test:e2e` confronte les
+trois comparateurs de versions à dpkg, rpm et apk, et les trois parseurs à de vrais paquets de
+Debian 12 et 13, Rocky 9 et 10, Alpine 3.20 et 3.22 (`docs/10`) ; cela a révélé trois refus à tort de
+vrais RPM, corrigés. Revues `security-reviewer` : verdict OK pour `formats/common`, deb, rpm, apk et
+le correctif rpm. Décisions encore au statut « proposé », à valider par le porteur : ADR-0015
+(décompression et tar sans dépendance) et ADR-0016 (conteneurs e2e sans testcontainers). Les points
+ouverts de M0 restent à fermer avant M2 (dérogation ci-dessus).
 
 ## M2 : Base, blobs, audit, crypto
 
