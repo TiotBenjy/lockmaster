@@ -29,25 +29,33 @@ Conséquences pratiques :
 | Unitaires | vitest | `domain/`, `formats/`, `crypto/`, politique, versions | `pnpm test` (< 30 s) |
 | Propriétés / fuzz | fast-check | parseurs deb/rpm/apk/control/XML, comparateurs de versions | `pnpm test` (court), `pnpm test:fuzz` (long, nocturne) |
 | Intégration | vitest + `fastify.inject` + SQLite temporaire | routes HTTP, authz, pipeline avec scanners factices, publication | `pnpm test` |
-| Scanners réels | testcontainers (`clamav/clamav`) + binaire grype | client clamd (EICAR), parsing de sortie grype | `pnpm test:e2e` |
-| Bout en bout | testcontainers : Lockmaster + conteneur nginx `repo` (config `deploy/nginx/lockmaster-repo.conf`, volume partagé en lecture seule) + clients `debian:12`, `debian:13`, `rockylinux:9`, `rockylinux/rockylinux:10`, `alpine:3.20` + dernière Alpine stable | upload -> scan -> publication -> `apt install` / `dnf install` / `apk add` **via nginx** (les clients ne joignent jamais l'app) ; dépôt privé (401 sans identifiants) ; rotation de clé ; rollback ; import amont ; cible rsync (sshd + rrsync) | `pnpm test:e2e`, CI |
+| Scanners réels | conteneur `clamav/clamav` (CLI Podman ou Docker, ADR-0016) + binaire grype | client clamd (EICAR), parsing de sortie grype | `pnpm test:e2e` |
+| Bout en bout | conteneurs (CLI Podman ou Docker, ADR-0016) : Lockmaster + conteneur nginx `repo` (config `deploy/nginx/lockmaster-repo.conf`, volume partagé en lecture seule) + clients `debian:12`, `debian:13`, `rockylinux:9`, `rockylinux/rockylinux:10`, `alpine:3.20` + dernière Alpine stable | upload -> scan -> publication -> `apt install` / `dnf install` / `apk add` **via nginx** (les clients ne joignent jamais l'app) ; dépôt privé (401 sans identifiants) ; rotation de clé ; rollback ; import amont ; cible rsync (sshd + rrsync) | `pnpm test:e2e`, CI |
 | Livrables | CI | installation du `.deb` (Debian 12/13) et du `.rpm` (Rocky 9/10) dans des conteneurs systemd ; image sous Docker et Podman rootless (scripts `test/deliverables/`, aussi lancés en local) | CI à chaque push et PR |
 
-testcontainers fonctionne avec Docker ou Podman (`DOCKER_HOST` vers le socket Podman,
-`TESTCONTAINERS_RYUK_DISABLED=true` si nécessaire) : documenter les deux dans `test/e2e/README.md`.
+Les conteneurs sont pilotés par `test/e2e/support/containers.ts` (ADR-0016) : `podman`, sinon
+`docker`, ou le moteur nommé par `LOCKMASTER_E2E_ENGINE` ; images épinglées par digest dans
+`packaging/versions.env`. Formats (M1) : `test/e2e/formats/versions.test.ts` confronte les trois
+comparateurs de versions à dpkg, rpm et apk (vecteurs amont, paires aléatoires, validité) ;
+`test/e2e/formats/packages.test.ts` passe à nos parseurs de vrais paquets (officiels et construits par
+`dpkg-deb` et `rpmbuild` avec chaque compression) et compare le résultat à `dpkg-deb`, `rpm`,
+`rpm2cpio`, `createrepo_c` et `apk index`.
 
 ## Fixtures
 
-- **Jamais de paquets binaires tiers commités.** Les paquets de test sont **générés** par
-  `test/fixtures/build.ts` (écriture native ar/tar/gzip pour deb et apk ; pour rpm, en-têtes
-  construits par un générateur de test) ou construits dans un conteneur (`dpkg-deb`, `rpmbuild`,
-  `abuild`) par un script `test/fixtures/build-real.sh` exécuté en CI et mis en cache.
-- Paquets réels amont téléchargés **en CI uniquement**, vérifiés par hash, pour valider
-  le parseur sur du contenu réel (glibc, openssl, busybox...).
+- **Jamais de paquets binaires tiers commités.** Les paquets de test sont **générés** en mémoire par
+  les générateurs de `test/fixtures/builders/` (un par format : ar, tar, cpio, xz, bzip2, deb, rpm,
+  apk ; chacun accepte des altérations pour produire un cas malformé), ou construits dans un
+  conteneur (`dpkg-deb`, `rpmbuild`) par les tests e2e (`test/e2e/formats/packages.test.ts`).
+- Paquets réels amont téléchargés **dans des conteneurs jetables uniquement** (jamais commités),
+  vérifiés par le gestionnaire de paquets de la distribution, pour valider le parseur sur du contenu
+  réel (bash, tzdata, busybox...) : `test/e2e/formats/packages.test.ts`.
 - Fichier EICAR généré à la volée (jamais commité tel quel : il déclenche les antivirus des postes).
-- Corpus de fichiers malformés dans `test/fixtures/malformed/` (générés) : ar tronqué, tar avec
-  `../`, lien symbolique, bombe gzip, en-tête RPM avec offsets hors bornes, `.PKGINFO` géant,
-  champs avec octet nul, XML avec caractères de contrôle.
+- Cas malformés générés dans les tests de chaque format par les générateurs ci-dessus : ar tronqué,
+  tar avec `../`, lien symbolique, bombe gzip, en-tête RPM avec offsets hors bornes, `.PKGINFO`
+  géant, champs avec octet nul, caractères de contrôle. Corpus sur disque produit par de vrais
+  outils (`xz`, `bzip2`, GNU tar) avec son manifeste : `test/fixtures/corpus/`, régénéré par
+  `test/fixtures/corpus-generate.ts`.
 
 ## Tests de sécurité obligatoires (`test/security/`, protégés : SEC-19)
 

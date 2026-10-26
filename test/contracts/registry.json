@@ -1,1 +1,4 @@
-{}
+{
+  "ByteSource": "describeByteSourceContract",
+  "PackageFormat": "describePackageFormatContract"
+}

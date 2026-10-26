@@ -1,0 +1,184 @@
+[
+  {
+    "file": "xz/empty.xz",
+    "compression": "xz",
+    "payloads": ["empty"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz"
+  },
+  {
+    "file": "xz/text-crc64.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz"
+  },
+  {
+    "file": "xz/text-crc32.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz --check=crc32"
+  },
+  {
+    "file": "xz/text-none.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz --check=none"
+  },
+  {
+    "file": "xz/text-sha256.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz --check=sha256"
+  },
+  {
+    "file": "xz/text-blocks.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz --block-size=32KiB"
+  },
+  {
+    "file": "xz/text-9e.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz -9e"
+  },
+  {
+    "file": "xz/text-dict-128m.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz --lzma2=dict=128MiB"
+  },
+  {
+    "file": "xz/mixed-lc1-lp3-pb0.xz",
+    "compression": "xz",
+    "payloads": ["mixed"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz --lzma2=preset=6,lc=1,lp=3,pb=0"
+  },
+  {
+    "file": "xz/mixed-lc4-lp0-pb4.xz",
+    "compression": "xz",
+    "payloads": ["mixed"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz --lzma2=preset=6,lc=4,lp=0,pb=4"
+  },
+  {
+    "file": "xz/mixed-1.xz",
+    "compression": "xz",
+    "payloads": ["mixed"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz -1"
+  },
+  {
+    "file": "xz/random.xz",
+    "compression": "xz",
+    "payloads": ["random"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz"
+  },
+  {
+    "file": "xz/zeros.xz",
+    "compression": "xz",
+    "payloads": ["zeros"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz"
+  },
+  {
+    "file": "xz/longrange.xz",
+    "compression": "xz",
+    "payloads": ["longrange"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz"
+  },
+  {
+    "file": "xz/interleaved.xz",
+    "compression": "xz",
+    "payloads": ["interleaved"],
+    "expect": "ok",
+    "command": "xz (XZ Utils) 5.8.1 : xz"
+  },
+  {
+    "file": "xz/text-x86.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "FORMAT_UNSUPPORTED_COMPRESSION",
+    "command": "xz (XZ Utils) 5.8.1 : xz --x86 --lzma2"
+  },
+  {
+    "file": "xz/text-delta.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "FORMAT_UNSUPPORTED_COMPRESSION",
+    "command": "xz (XZ Utils) 5.8.1 : xz --delta=dist=4 --lzma2"
+  },
+  {
+    "file": "xz/text-lzma-alone.xz",
+    "compression": "xz",
+    "payloads": ["text"],
+    "expect": "FORMAT_CORRUPT_STREAM",
+    "command": "xz (XZ Utils) 5.8.1 : xz --format=lzma"
+  },
+  {
+    "file": "bzip2/empty.bz2",
+    "compression": "bzip2",
+    "payloads": ["empty"],
+    "expect": "ok",
+    "command": "bzip2, a block-sorting file compressor.  Version 1.0.8, 13-Jul-2019. : bzip2"
+  },
+  {
+    "file": "bzip2/text-9.bz2",
+    "compression": "bzip2",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "bzip2, a block-sorting file compressor.  Version 1.0.8, 13-Jul-2019. : bzip2 -9"
+  },
+  {
+    "file": "bzip2/text-1.bz2",
+    "compression": "bzip2",
+    "payloads": ["text"],
+    "expect": "ok",
+    "command": "bzip2, a block-sorting file compressor.  Version 1.0.8, 13-Jul-2019. : bzip2 -1"
+  },
+  {
+    "file": "bzip2/mixed-1.bz2",
+    "compression": "bzip2",
+    "payloads": ["mixed"],
+    "expect": "ok",
+    "command": "bzip2, a block-sorting file compressor.  Version 1.0.8, 13-Jul-2019. : bzip2 -1"
+  },
+  {
+    "file": "bzip2/random.bz2",
+    "compression": "bzip2",
+    "payloads": ["random"],
+    "expect": "ok",
+    "command": "bzip2, a block-sorting file compressor.  Version 1.0.8, 13-Jul-2019. : bzip2"
+  },
+  {
+    "file": "bzip2/zeros.bz2",
+    "compression": "bzip2",
+    "payloads": ["zeros"],
+    "expect": "ok",
+    "command": "bzip2, a block-sorting file compressor.  Version 1.0.8, 13-Jul-2019. : bzip2"
+  },
+  {
+    "file": "xz/concatenated.xz",
+    "compression": "xz",
+    "payloads": ["text", "random"],
+    "expect": "ok",
+    "command": "text-crc32.xz + 4 octets nuls + random.xz"
+  },
+  {
+    "file": "bzip2/concatenated.bz2",
+    "compression": "bzip2",
+    "payloads": ["text", "random"],
+    "expect": "ok",
+    "command": "text-9.bz2 + random.bz2"
+  }
+]

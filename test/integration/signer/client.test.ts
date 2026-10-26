@@ -19,7 +19,12 @@ afterEach(async () => {
 async function fakeSigner(onConnection: (socket: Socket) => void): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'lockmaster-client-'));
   const path = join(dir, 'sign.sock');
-  const server: Server = createServer(onConnection);
+  // Le client ferme sa socket dès qu'il rejette : une écriture du faux signataire peut alors
+  // échouer (EPIPE). Sans écouteur, cette erreur deviendrait une exception non gérée du test.
+  const server: Server = createServer((socket) => {
+    socket.on('error', () => socket.destroy());
+    onConnection(socket);
+  });
   await new Promise<void>((resolve) => server.listen(path, resolve));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
@@ -51,7 +56,7 @@ describe('client du signataire', () => {
       const header = Buffer.from([0, 0, 0, 100]);
       let sent = 0;
       const drip = setInterval(() => {
-        if (socket.destroyed) return clearInterval(drip);
+        if (!socket.writable) return clearInterval(drip);
         socket.write(sent < 4 ? header.subarray(sent, sent + 1) : Buffer.from(' '));
         sent += 1;
       }, 50);
