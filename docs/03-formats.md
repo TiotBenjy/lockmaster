@@ -25,18 +25,26 @@ Spécifications de référence (à consulter, ne pas deviner) :
 
 ## 1. Concepts communs
 
+Type défini dans `src/domain/package.ts`, produit par chaque implémentation de `PackageFormat`
+(`src/formats/package-format.ts` : `parse`, `innerStreams` pour l'antivirus, `compareVersions`) :
+
 ```ts
-type Format = 'deb' | 'rpm' | 'apk';
+type PackageFormatName = 'deb' | 'rpm' | 'apk';
+type VersionOperator = 'lt' | 'le' | 'eq' | 'ge' | 'gt';  // normalisé depuis << <= = >= >>, LT..., < ...
+interface Relation { name: string; operator?: VersionOperator; version?: string; qualifier?: string }
+type RelationGroup = Relation[];  // alternatives : une seule suffit
 
 interface ParsedPackage {
-  format: Format;
+  format: PackageFormatName;
   name: string;          // validé par regex de format
-  version: string;       // version complète normalisée (epoch:version-release)
+  version: string;       // version complète telle qu'écrite, validée par la grammaire du format
   arch: string;          // amd64 | arm64 | all | x86_64 | aarch64 | noarch | x86_64(apk) ...
   size: number;
-  sha256: string; sha512: string; sha1: string; md5: string; // md5/sha1 seulement pour compat. métadonnées
+  digests: { sha256: string; sha512: string; sha1: string; md5: string }; // md5/sha1 : compat. métadonnées
   control: Record<string, string>; // champs bruts nécessaires à la régénération des métadonnées
-  depends: Relation[]; provides: Relation[]; conflicts: Relation[]; // normalisés
+  depends: RelationGroup[];        // Pre-Depends puis Depends en Debian
+  provides: Relation[]; conflicts: Relation[]; // conflicts = Conflicts + Breaks en Debian
+  replaces: Relation[];  // Replaces (deb), Obsoletes (rpm), replaces (apk) : signal SEC-02
   files?: string[];      // RPM : liste des fichiers (filelists) ; deb/apk : non requis
   sourceName?: string; sourceVersion?: string; // pour le matching CVE (paquet source)
   maintainerScripts: string[]; // noms des scripts présents (preinst, %post, .pre-install...)

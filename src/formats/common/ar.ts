@@ -15,7 +15,7 @@ export interface ArMember {
 
 export interface ReadArOptions {
   readonly maxMembers: number;
-  readonly signal?: AbortSignal;
+  readonly signal?: AbortSignal | undefined;
 }
 
 const MAGIC = '!<arch>\n';

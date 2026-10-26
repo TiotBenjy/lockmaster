@@ -16,8 +16,8 @@ export interface TarEntry {
   readonly mode: number;
   readonly size: number;
   readonly linkTarget?: string;
-  /** Contenu, pour les fichiers ordinaires. */
-  readonly data?: Uint8Array;
+  /** Contenu (vide pour tout ce qui n'est pas un fichier ordinaire). */
+  readonly data: Uint8Array;
 }
 
 export interface TarOptions {
@@ -28,7 +28,7 @@ export interface TarOptions {
   readonly maxExtendedHeaderBytes: number;
   /** Exige les deux blocs nuls de fin (faux pour le contrôle apk, écrit sans eux). */
   readonly requireEndMarker: boolean;
-  readonly signal?: AbortSignal;
+  readonly signal?: AbortSignal | undefined;
 }
 
 const BLOCK = 512;
@@ -149,7 +149,10 @@ function buildEntry(raw: RawHeader, pending: Pending, data: Uint8Array, options:
     if (data.length > 0) throw invalid(-1, "données sur une entrée qui n'en a pas");
     const linkTarget = reconcile(pending.linkTarget, raw.linkTarget, raw.linkFieldFull);
     const isLink = type === 'symlink' || type === 'hardlink';
-    return isLink ? { path, type, mode: raw.mode, size: 0, linkTarget } : { path, type, mode: raw.mode, size: 0 };
+    const empty = new Uint8Array(0);
+    return isLink
+      ? { path, type, mode: raw.mode, size: 0, linkTarget, data: empty }
+      : { path, type, mode: raw.mode, size: 0, data: empty };
   }
   if (data.length > options.maxEntryBytes) {
     throw new FormatError('FORMAT_LIMIT_EXCEEDED', `tar : entrée de plus de ${options.maxEntryBytes} octets`);

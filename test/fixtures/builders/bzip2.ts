@@ -1,4 +1,4 @@
-// Encodeur bzip2 minimal pour les tests : BWT naïve (petits contenus sans répétition de 4 octets),
+// Encodeur bzip2 minimal pour les tests : codage des répétitions (RLE1), BWT naïve (petits contenus),
 // MTF, RUNA/RUNB, tables de Huffman à longueur fixe, un sélecteur par groupe de 50 symboles. Chaque
 // champ du bloc peut être remplacé pour forger des flux invalides.
 
@@ -55,7 +55,8 @@ interface Encoded {
   readonly symbols: number[];
 }
 
-function encode(content: Uint8Array): Encoded {
+function encode(raw: Uint8Array): Encoded {
+  const content = runLengthEncode(raw);
   const length = content.length;
   const rotations = Array.from({ length }, (_, index) => index).sort((a, b) => {
     for (let offset = 0; offset < length; offset += 1) {
@@ -65,6 +66,28 @@ function encode(content: Uint8Array): Encoded {
     return 0;
   });
   const last = rotations.map((start) => content[(start + length - 1) % length] ?? 0);
+  return mtf(content, last, rotations.indexOf(0));
+}
+
+/** Codage initial des répétitions de bzip2 : 4 octets égaux puis un compteur (0 à 251) de répétitions. */
+function runLengthEncode(content: Uint8Array): Uint8Array {
+  const out: number[] = [];
+  let index = 0;
+  while (index < content.length) {
+    const byte = content[index] ?? 0;
+    let run = 1;
+    while (run < 255 && content[index + run] === byte) run += 1;
+    if (run >= 4) {
+      out.push(byte, byte, byte, byte, run - 4);
+    } else {
+      for (let copy = 0; copy < run; copy += 1) out.push(byte);
+    }
+    index += run;
+  }
+  return Uint8Array.from(out);
+}
+
+function mtf(content: Uint8Array, last: number[], origPtr: number): Encoded {
   const used = [...new Set(content)].sort((a, b) => a - b);
   const order = [...used.keys()];
   const symbols: number[] = [];
@@ -92,7 +115,7 @@ function encode(content: Uint8Array): Encoded {
   }
   flush();
   symbols.push(used.length + 1);
-  return { origPtr: rotations.indexOf(0), used, symbols };
+  return { origPtr, used, symbols };
 }
 
 function writeBlock(writer: BitWriter, spec: Bzip2BlockSpec): number {
