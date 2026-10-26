@@ -19,8 +19,17 @@ function hasEngine(name: string): boolean {
   }
 }
 
-/** Moteur de conteneurs : LOCKMASTER_E2E_ENGINE, sinon podman, sinon docker. */
-export const engine = process.env['LOCKMASTER_E2E_ENGINE'] ?? (hasEngine('podman') ? 'podman' : 'docker');
+const ENGINES = ['podman', 'docker'];
+
+/** Moteur de conteneurs : LOCKMASTER_E2E_ENGINE (podman ou docker), sinon podman, sinon docker. */
+function chooseEngine(): string {
+  const requested = process.env['LOCKMASTER_E2E_ENGINE'];
+  if (requested === undefined) return hasEngine('podman') ? 'podman' : 'docker';
+  if (!ENGINES.includes(requested)) throw new Error('LOCKMASTER_E2E_ENGINE : podman ou docker');
+  return requested;
+}
+
+export const engine = chooseEngine();
 
 /** Référence épinglée (`<NOM>_IMAGE`) de packaging/versions.env. */
 export function pinnedImage(name: string): string {
