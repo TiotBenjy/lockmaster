@@ -26,10 +26,30 @@ export const PACKAGE_NAME = /^[a-z0-9][a-z0-9+.-]+$/;
 const ARCHITECTURE = /^[a-z0-9][a-z0-9-]*$/;
 const SOURCE = /^([a-z0-9][a-z0-9+.-]+)(?: \(([^()\s]+)\))?$/;
 const INSTALLED_SIZE = /^\d{1,15}$/;
+/**
+ * Champs que l'archive ajoute elle-même dans Packages (deb-control(5), dpkg-scanpackages) ou propres
+ * à la base de statut de dpkg : un paquet qui les porte chercherait à imposer un autre fichier ou une
+ * autre empreinte à apt une fois republié (deux Filename dans la même strophe).
+ */
+const RESERVED_FIELDS = new Set(
+  [
+    'Filename',
+    'Size',
+    'MD5sum',
+    'SHA1',
+    'SHA256',
+    'SHA512',
+    'Description-md5',
+    'Status',
+    'Config-Version',
+    'Conffiles',
+  ].map((field) => field.toLowerCase()),
+);
 
 const invalid = (reason: string): FormatError => new FormatError('FORMAT_INVALID', `contrôle Debian : ${reason}`);
 
 export function readDebMetadata(stanza: ControlStanza): DebMetadata {
+  if (stanza.fields.some((field) => RESERVED_FIELDS.has(field.name.toLowerCase()))) throw invalid('champ réservé');
   const name = singleLine(stanza, 'Package');
   const version = singleLine(stanza, 'Version');
   const arch = singleLine(stanza, 'Architecture');

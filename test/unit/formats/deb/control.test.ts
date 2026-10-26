@@ -69,6 +69,9 @@ describe('parseControl', () => {
     ['octet nul', 'Package: a\0\n'],
     ['caractère de contrôle C1', 'Package: a\u0085\n'],
     ['caractère DEL', 'Package: a\u007f\n'],
+    ['espace insécable après la valeur', 'Version: 1.0\u00a0\n'],
+    ['espace insécable avant la valeur', 'Version: \u00a01.0\n'],
+    ['ligne de blancs Unicode', 'Package: a\n\u2003\n'],
   ])('refuse : %s (FORMAT_INVALID)', (_label, text) => {
     expect(codeOf(text)).toBe('FORMAT_INVALID');
   });

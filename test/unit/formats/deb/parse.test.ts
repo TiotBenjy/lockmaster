@@ -105,6 +105,21 @@ describe('parseDeb : métadonnées', () => {
     ['alternative dans Conflicts', withField('Conflicts', 'a0 | b0')],
     ['Recommends invalide', withField('Recommends', 'A0')],
     ['texte de contrôle invalide', { control: 'Package: hello\n# commentaire\n' }],
+    ...[
+      'Filename',
+      'size',
+      'MD5sum',
+      'SHA1',
+      'sha256',
+      'SHA512',
+      'Description-md5',
+      'Status',
+      'Config-Version',
+      'Conffiles',
+    ].map((field): [string, DebSpec] => [
+      `champ réservé à l'archive ou à dpkg (${field})`,
+      withField(field, 'pool/x/openssl.deb'),
+    ]),
   ])('refuse : %s (FORMAT_INVALID)', async (_label, spec) => {
     expect(await codeOf(spec)).toBe('FORMAT_INVALID');
   });

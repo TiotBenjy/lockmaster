@@ -19,6 +19,16 @@ export interface ControlStanza {
 }
 
 const FIELD_NAME = /^[!-9;-~]+$/;
+/** dpkg n'enlève que les espaces et tabulations ; un autre blanc Unicode reste dans la valeur. */
+const BLANK_LINE = /^[ \t]*$/;
+const OTHER_BLANK_AT_EDGE = /^\s|\s$/u;
+
+/** Retire espaces et tabulations autour d'une valeur ; refuse tout autre blanc à ses bords. */
+function trimBlanks(value: string): string {
+  const trimmed = value.replace(/^[ \t]+|[ \t]+$/g, '');
+  if (OTHER_BLANK_AT_EDGE.test(trimmed)) throw invalid("blanc Unicode autour d'une valeur");
+  return trimmed;
+}
 const utf8 = new TextDecoder('utf-8', { fatal: true });
 
 const invalid = (reason: string): FormatError => new FormatError('FORMAT_INVALID', `contrôle Debian : ${reason}`);
@@ -32,7 +42,7 @@ export function parseControl(bytes: Uint8Array, limits: FormatLimits): ControlSt
   const fields: { name: string; lines: string[] }[] = [];
   let ended = false;
   for (const line of lines) {
-    if (line.trim() === '') {
+    if (BLANK_LINE.test(line)) {
       if (fields.length > 0) ended = true;
       continue;
     }
@@ -43,7 +53,7 @@ export function parseControl(bytes: Uint8Array, limits: FormatLimits): ControlSt
       current.lines.push(line);
       continue;
     }
-    fields.push({ name: fieldName(line), lines: [line.slice(line.indexOf(':') + 1).trim()] });
+    fields.push({ name: fieldName(line), lines: [trimBlanks(line.slice(line.indexOf(':') + 1))] });
   }
   const result = fields.map(({ name, lines: valueLines }) => ({ name, value: valueLines.join('\n') }));
   checkFields(result, limits);
@@ -106,7 +116,8 @@ function serializeField(field: ControlField): string {
   const [first = '', ...rest] = field.value.split('\n');
   if (first !== first.trim()) throw invalid('blancs autour de la première ligne');
   for (const line of rest) {
-    if (!(line.startsWith(' ') || line.startsWith('\t')) || line.trim() === '') throw invalid('ligne de continuation');
+    if (!(line.startsWith(' ') || line.startsWith('\t')) || BLANK_LINE.test(line))
+      throw invalid('ligne de continuation');
   }
   return `${[first === '' ? `${field.name}:` : `${field.name}: ${first}`, ...rest].join('\n')}\n`;
 }

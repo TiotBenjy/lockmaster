@@ -155,7 +155,9 @@ Reporté de M0 (SEC-29) : la clé maîtresse de l'application est en `root:root`
 
 Exigences `docs/11` : SEC-05 (`Origin`/`Label` uniques, `Valid-Until` 7 j), SEC-25 (hash revérifié pendant l'envoi vers les cibles).
 
-- [ ] `publish/deb` : `Packages`(+gz), `Release`, `InRelease`, `Release.gpg`, by-hash, déterminisme
+- [ ] `publish/deb` : `Packages`(+gz), `Release`, `InRelease`, `Release.gpg`, by-hash, déterminisme ;
+      strophes construites depuis une liste de champs autorisés (recherche insensible à la casse),
+      jamais par recopie du contrôle (`docs/03` §2.1, revue du parseur deb)
 - [ ] Générations immuables, bascule atomique, conservation K, vérification avant bascule
 - [ ] Cible `local` (`publish/targets/local.ts`) : arborescence `public/` d'ADR-0003, fichiers de
       paquets immuables (refus d'écrasement), bascule par lien symbolique, `.lockmaster-target.json`,
@@ -189,6 +191,14 @@ décompression s'est terminée sans erreur. Les `ArrayBuffer` (dictionnaire xz j
 BWT de 3,6 Mo) et la mémoire native de zstd (fenêtre de 128 MiB) échappent aux `resourceLimits` des
 workers : dimensionner le pool en conséquence. L'échéance d'analyse est imposée par
 `worker.terminate()` depuis le fil principal, pas par l'`AbortSignal` (`limits.ts`).
+
+Reporté de M1 (revue du parseur deb) : inventaire obligatoire du contenu (data.tar, fichiers RPM,
+données APK) pendant la lecture faite pour l'antivirus, règle intégrée `sensitive-content`
+(`docs/03` §2.1, `docs/04` §3) avec ses tests (« .deb sans script avec un fichier setuid ->
+pending_review », « fichier dans /etc/cron.d -> pending_review ») : SEC-02 n'est pas fermée sans
+elle. clamd n'est pas fail-closed par défaut au-delà de `MaxScanSize`/`MaxFileSize` (il répond `OK`) :
+configurer `AlertExceedsMax yes`, traiter `Heuristics.Limits.Exceeded` et `INSTREAM size limit
+exceeded` en `error`, et tester un data.tar plus grand que `MaxScanSize`.
 
 - [ ] Machine à états + table de vérité testée ; jobs persistants (`jobs/`) avec reprise
 - [ ] Pool de `worker_threads` pour l'analyse des paquets (`resourceLimits`, échéance, recréation) ;
