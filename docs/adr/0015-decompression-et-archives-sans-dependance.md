@@ -1,6 +1,6 @@
 # ADR-0015 : Décompression xz et bzip2 et lecture tar sans dépendance
 
-- Statut : proposé
+- Statut : accepté (décision du porteur, 2026-10-26)
 - Date : 2026-10-26
 - Modifie ADR-0001 (ligne « Archives » : `tar-stream` et décodeur xz « à sélectionner en M1 »)
 
