@@ -2,7 +2,8 @@
 
 - Statut : accepté, amendé par ADR-0008 (l'application ne sert plus les fichiers de dépôt ;
   ils sont servis par un nginx séparé) et par ADR-0009 (signature dans un processus séparé,
-  `lockmaster-signer`, sous un autre compte, même code), et par ADR-0014 (pnpm 12 au lieu de pnpm 10)
+  `lockmaster-signer`, sous un autre compte, même code), par ADR-0014 (pnpm 12 au lieu de pnpm 10),
+  par ADR-0015 (xz, bzip2 et tar sans dépendance) et par ADR-0016 (tests e2e sans testcontainers)
 - Date : 2026-10-19
 
 ## Contexte

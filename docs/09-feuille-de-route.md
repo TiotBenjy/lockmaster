@@ -132,10 +132,11 @@ fichiers produits par de vrais outils) : `docs/10` §Fixtures décrit cette orga
 `src/formats` : 100 % des lignes et des branches. Au-delà des critères, `pnpm test:e2e` confronte les
 trois comparateurs de versions à dpkg, rpm et apk, et les trois parseurs à de vrais paquets de
 Debian 12 et 13, Rocky 9 et 10, Alpine 3.20 et 3.22 (`docs/10`) ; cela a révélé trois refus à tort de
-vrais RPM, corrigés. Revues `security-reviewer` : verdict OK pour `formats/common`, deb, rpm, apk et
-le correctif rpm. Décisions encore au statut « proposé », à valider par le porteur : ADR-0015
-(décompression et tar sans dépendance) et ADR-0016 (conteneurs e2e sans testcontainers). Les points
-ouverts de M0 restent à fermer avant M2 (dérogation ci-dessus).
+vrais RPM, corrigés ; ces tests tournent en CI (job « Tests e2e »). Revues `security-reviewer` :
+verdict OK pour `formats/common`, deb, rpm, apk et le correctif rpm. ADR-0015 (décompression et tar
+sans dépendance) et ADR-0016 (conteneurs e2e sans testcontainers) acceptés par le porteur le
+2026-10-26 : **M1 est clos**. Les points ouverts de M0 restent à fermer avant M2 (dérogation
+ci-dessus).
 
 ## M2 : Base, blobs, audit, crypto
 

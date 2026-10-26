@@ -1,6 +1,6 @@
 # ADR-0016 : Conteneurs des tests e2e pilotés par la CLI, sans testcontainers
 
-- Statut : proposé
+- Statut : accepté (décision du porteur, 2026-10-26)
 - Date : 2026-10-26
 - Modifie ADR-0001 (ligne « Tests » : testcontainers)
 
