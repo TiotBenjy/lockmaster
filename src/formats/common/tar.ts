@@ -44,6 +44,13 @@ const TYPES: Readonly<Record<string, TarEntryType>> = {
   '6': 'fifo',
 };
 const EXTENDED = new Set(['x', 'g', 'L', 'K']);
+/**
+ * Clés pax admises : celles qui changent nom, cible ou taille sont contrôlées (`reconcile`), les autres
+ * sont des métadonnées sans effet sur le contenu. Toute autre clé (GNU.sparse.*, hdrcharset,
+ * SCHILY.xattr.*...) pourrait changer ce qu'un autre lecteur extrait : refusée.
+ */
+const PAX_CONTROLLED_KEYS = new Set(['path', 'linkpath', 'size']);
+const PAX_METADATA_KEYS = new Set(['mtime', 'atime', 'ctime', 'uid', 'gid', 'uname', 'gname', 'comment']);
 const utf8 = new TextDecoder('utf-8', { fatal: true });
 
 /**
@@ -157,8 +164,18 @@ function buildEntry(raw: RawHeader, pending: Pending, data: Uint8Array, options:
  */
 function reconcile(extended: string | undefined, ustar: string, fieldFull: boolean): string {
   if (extended === undefined || extended === ustar) return ustar;
-  if (fieldFull && extended.startsWith(ustar)) return extended;
+  if (fieldFull && isCanonical(ustar) && extended.startsWith(ustar)) return extended;
   throw invalid(-1, 'chemin étendu différent du nom ustar');
+}
+
+/**
+ * Nom tronqué sans segment vide ni `.` (hors `./` initial) : sa forme normalisée garde presque tous
+ * ses caractères, donc un lecteur qui ignore l'extension ne peut pas y lire un nom court.
+ */
+function isCanonical(path: string): boolean {
+  const body = path.startsWith('./') ? path.slice(2) : path;
+  const segments = body.split('/');
+  return segments.every((segment, index) => segment !== '.' && (segment !== '' || index === segments.length - 1));
 }
 
 function applyExtended(
@@ -181,9 +198,19 @@ function applyExtended(
   }
   if (pending.kinds.has(typeflag)) throw invalid(offset, 'en-tête étendu répété');
   const kinds = new Set([...pending.kinds, typeflag]);
-  if (typeflag === 'L') return { ...pending, kinds, path: text(data, offset) };
-  if (typeflag === 'K') return { ...pending, kinds, linkTarget: text(data, offset) };
-  return { ...pending, ...parsePax(data, offset), kinds };
+  const values: PaxValues =
+    typeflag === 'L'
+      ? { path: text(data, offset) }
+      : typeflag === 'K'
+        ? { linkTarget: text(data, offset) }
+        : parsePax(data, offset);
+  if (
+    (values.path !== undefined && pending.path !== undefined) ||
+    (values.linkTarget !== undefined && pending.linkTarget !== undefined)
+  ) {
+    throw invalid(offset, 'deux en-têtes étendus pour le même chemin');
+  }
+  return { ...pending, ...values, kinds };
 }
 
 interface PaxValues {
@@ -208,6 +235,7 @@ function parsePax(data: Uint8Array, offset: number): PaxValues {
     if (equals <= 0) throw invalid(offset, 'enregistrement pax sans clé');
     const key = record.slice(0, equals);
     const value = record.slice(equals + 1);
+    if (!PAX_CONTROLLED_KEYS.has(key) && !PAX_METADATA_KEYS.has(key)) throw invalid(offset, 'clé pax non admise');
     if (key === 'path') result.path = value;
     else if (key === 'linkpath') result.linkTarget = value;
     else if (key === 'size') result.size = decimalOrThrow(value, offset);

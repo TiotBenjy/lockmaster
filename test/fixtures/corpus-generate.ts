@@ -3,7 +3,17 @@
 // et le manifeste sont commités ; les tests ne lancent jamais ces outils.
 // Usage : pnpm exec tsx test/fixtures/corpus-generate.ts && pnpm biome check --write test/fixtures/corpus
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PAYLOADS, type PayloadName } from './builders/payloads.js';
@@ -174,11 +184,30 @@ function generateTar(): void {
       ['pax', ['--format=pax', '--pax-option=delete=atime,delete=ctime', ...common, ...all]],
       ['ustar', ['--format=ustar', '--no-recursion', ...common, ...ustarFiles]],
     ];
+    // Fichier creux : 1 Mio de trou puis un script ; GNU tar --sparse l'écrit avec des clés GNU.sparse.*.
+    // Seule archive non reproductible : GNU tar met son numéro de processus dans GNUSparseFile.<pid>.
+    const sparseRoot = join(tree, '..', `${tree.split('/').pop()}-sparse`);
+    mkdirSync(sparseRoot);
+    const fd = openSync(join(sparseRoot, 'postinst'), 'w', 0o755);
+    writeSync(fd, Buffer.from('#!/bin/sh\nexit 0\n'), 0, 17, 1024 * 1024);
+    closeSync(fd);
+    archives.push([
+      'sparse',
+      [
+        '--format=pax',
+        '--sparse',
+        '--sparse-version=1.0',
+        '--pax-option=delete=atime,delete=ctime',
+        ...common.map((arg) => (arg === tree ? sparseRoot : arg)),
+        './postinst',
+      ],
+    ]);
     for (const [name, args] of archives) {
       const bytes = execFileSync(TAR, args, { shell: false, env: { PATH: '/usr/bin', LC_ALL: 'C' } });
       writeFileSync(join(TAR_ROOT, `${name}.tar`), bytes);
     }
   } finally {
+    rmSync(`${tree}-sparse`, { recursive: true, force: true });
     rmSync(tree, { recursive: true, force: true });
   }
 }
