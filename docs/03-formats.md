@@ -184,9 +184,20 @@ dans le `.repo` ; apk : identifiants dans l'URL de `/etc/apk/repositories` (`htt
    `FILEMODES`, `FILEFLAGS`, `PAYLOADCOMPRESSOR`, scriptlets `PREIN/POSTIN/PREUN/POSTUN/...`.
    Bornes : nindex <= 65 536, hsize <= 64 MiB, chaque offset/longueur vérifié dans `store`,
    types de tags vérifiés, chaînes terminées par NUL dans les bornes.
-4. Le **payload** (cpio compressé) n'est **pas** décompressé. Vérifier que `SHA256HEADER`
-   correspond au hash du header lu, et que la taille totale correspond à `SIZE` si présent.
-5. Calculer `headerStart`/`headerEnd` (octets) : requis par `<rpm:header-range>` dans `primary.xml`.
+4. Le **payload** (cpio compressé) n'est décompressé que pour l'antivirus (SEC-01), jamais extrait.
+   `SHA256HEADER` est **obligatoire** et doit correspondre à l'en-tête lu ; `SHA1HEADER`, `SIZE` /
+   `LONGSIZE` et `PAYLOADDIGEST` (avec `PAYLOADDIGESTALGO` = 8, SHA-256) sont vérifiés s'ils sont
+   présents. Compresseur absent = gzip (comme `rpmte.c`) ; `lzma` refusé (ADR-0015) ; payload autre
+   que cpio refusé ; paquet source (lead de type 1) refusé.
+5. Calculer `headerStart`/`headerEnd` (octets) : requis par `<rpm:header-range>` dans `primary.xml`
+   (`ParsedPackage.headerRange`).
+6. Contrôles de structure repris de `lib/header.c` (rpm 4.19.1) : région et trailer couvrant tout
+   l'en-tête, entrées croissantes sans chevauchement, types, alignements, nombres, chaînes terminées
+   avant le trailer, tags connus au bon type, doublons refusés ; numéros de tags dans
+   `src/formats/rpm/tags.ts` avec leur source. Scriptlets signalés (SEC-02) par leur corps ou leur
+   seul interpréteur (`%post -p`) : `%pretrans`, `%pre`, `%post`, `%preun`, `%postun`, `%posttrans`,
+   `%preuntrans`, `%postuntrans`, `%verifyscript`, déclencheurs (`%triggers`, `%filetriggers`,
+   `%transfiletriggers`).
 
 ### 3.2 Arborescence publiée
 
