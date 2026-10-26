@@ -1,6 +1,6 @@
 # ADR-0012 : Clé maîtresse transmise par LoadCredential, chiffrement laissé à l'opérateur
 
-- Statut : proposé
+- Statut : accepté (décision du porteur, 2026-10-26)
 - Date : 2026-10-25
 
 ## Contexte
