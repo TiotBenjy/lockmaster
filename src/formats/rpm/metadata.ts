@@ -26,7 +26,8 @@ export interface RpmMetadata {
   readonly files: readonly string[];
   readonly maintainerScripts: readonly string[];
   readonly control: Readonly<Record<string, string>>;
-  readonly compression: Compression;
+  /** Absente : PAYLOADCOMPRESSOR non écrit (`_binary_payload w0.ufdio`), voir `rpmInnerStreams`. */
+  readonly compression: Compression | undefined;
 }
 
 const NAME = /^[A-Za-z0-9_][A-Za-z0-9._+-]*$/;
@@ -173,11 +174,11 @@ function control(
   return Object.fromEntries(fields.filter((field): field is [string, string] => field[1] !== undefined));
 }
 
-function payloadCompression(header: RpmHeader): Compression {
+function payloadCompression(header: RpmHeader): Compression | undefined {
   const format = header.string(TAG.PAYLOADFORMAT);
   if (format !== undefined && format !== 'cpio') throw invalid('format de payload autre que cpio');
-  const name = header.string(TAG.PAYLOADCOMPRESSOR) ?? 'gzip';
-  return asCompression(COMPRESSORS[name] ?? `non admis : ${name.length}`);
+  const name = header.string(TAG.PAYLOADCOMPRESSOR);
+  return name === undefined ? undefined : asCompression(COMPRESSORS[name] ?? `non admis : ${name.length}`);
 }
 
 function singleLine(value: string | undefined): string | undefined {

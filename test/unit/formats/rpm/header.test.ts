@@ -95,6 +95,47 @@ describe('parseRpmHeader', () => {
     expect(codeOf(bytes)).toBe('FORMAT_INVALID');
   });
 
+  it('admet une chaîne simple là où rpm attend un tableau (interpréteur sans argument, build/parseScript.c)', () => {
+    const parsed = parse(header({}, [{ tag: 1086, type: TYPE.STRING, value: '/bin/sh' }]));
+    expect(parsed.strings(1086)).toEqual(['/bin/sh']);
+  });
+
+  it("admet un tag répété à l'identique (SOURCERPM écrit deux fois par rpmbuild 4.19.1.1 de Rocky 10)", () => {
+    const parsed = parse(
+      header({}, [
+        { tag: 1044, type: TYPE.STRING, value: 'demo-1-1.src.rpm' },
+        { tag: 1044, type: TYPE.STRING, value: 'demo-1-1.src.rpm' },
+      ]),
+    );
+    expect(parsed.string(1044)).toBe('demo-1-1.src.rpm');
+  });
+
+  it.each([
+    [
+      'tag répété avec une autre valeur',
+      [
+        { tag: 1044, type: TYPE.STRING, value: 'a-1-1.src.rpm' },
+        { tag: 1044, type: TYPE.STRING, value: 'b-1-1.src.rpm' },
+      ],
+    ],
+    [
+      'tag répété avec un autre type',
+      [
+        { tag: 1047, type: TYPE.STRING_ARRAY, value: ['a'] },
+        { tag: 1047, type: TYPE.STRING, value: 'a' },
+      ],
+    ],
+  ] as const)('refuse : %s (FORMAT_INVALID)', (_label, tags) => {
+    expect(codeOf(header({}, [...tags]))).toBe('FORMAT_INVALID');
+  });
+
+  it.each([
+    ['tableau là où rpm attend une chaîne', { tag: 1000, type: TYPE.STRING_ARRAY, value: ['a', 'b'] }],
+    ['chaîne traduite là où rpm attend un tableau', { tag: 1086, type: TYPE.I18N, value: ['/bin/sh'] }],
+  ] as const)('refuse : %s (FORMAT_INVALID)', (_label, tag) => {
+    expect(codeOf(header({}, [tag]))).toBe('FORMAT_INVALID');
+  });
+
   it('refuse des données qui empiètent sur le trailer de région', () => {
     const bytes = Buffer.from(header({}, [{ tag: 1003, type: TYPE.INT32, value: 7 }]));
     // Entrée 1 (EPOCH, 4 octets en 0) : déplacée au début du trailer, en 4, sans sortir des données.
