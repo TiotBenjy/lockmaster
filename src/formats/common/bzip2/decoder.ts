@@ -6,6 +6,7 @@
 
 import { at, at32, atNumber } from '../bytes.js';
 import { FormatError, throwIfAborted } from '../errors.js';
+import { checkStreamCount } from '../limits.js';
 import { StreamReader } from '../stream-reader.js';
 import { BitReader, corrupt, HuffmanTable, MAX_CODE_LENGTH } from './bits.js';
 
@@ -22,6 +23,7 @@ const MAX_SELECTORS = 2 + 900_000 / GROUP_SIZE;
 /** Fenêtre d'entrée d'un bloc : un bloc valide de 900 000 symboles de 20 bits tient en 2,3 Mio. */
 const BLOCK_WINDOW_BYTES = 3 * 1024 * 1024;
 const OUTPUT_CHUNK_BYTES = 64 * 1024;
+const MAX_BLOCK_BYTES = 900_000;
 
 const CRC_TABLE = new Uint32Array(256);
 for (let index = 0; index < 256; index += 1) {
@@ -37,8 +39,13 @@ export async function* decodeBzip2(
   const reader = new StreamReader(input, options.signal);
   const output = { produced: 0, max: options.maxOutputBytes };
   try {
+    // Tableau de la BWT alloué une fois (bloc de 900 000 octets au plus) et réutilisé par flux.
+    const tt = new Uint32Array(MAX_BLOCK_BYTES);
+    let streams = 0;
     do {
-      yield* decodeStream(reader, output, options.signal);
+      streams += 1;
+      checkStreamCount(streams, reader.position);
+      yield* decodeStream(reader, output, tt, options.signal);
     } while (!(await reader.atEnd()));
   } finally {
     await reader.close();
@@ -53,6 +60,7 @@ interface OutputBudget {
 async function* decodeStream(
   reader: StreamReader,
   output: OutputBudget,
+  tt: Uint32Array,
   signal: AbortSignal | undefined,
 ): AsyncGenerator<Uint8Array> {
   const header = await reader.readExact(4);
@@ -60,7 +68,7 @@ async function* decodeStream(
   if (header[0] !== 0x42 || header[1] !== 0x5a || header[2] !== 0x68 || level < 1 || level > 9) {
     throw corrupt('en-tête absent');
   }
-  const tt = new Uint32Array(level * 100_000);
+  const blockLimit = level * 100_000;
   let bitOffset = 0;
   let combined = 0;
   for (;;) {
@@ -74,7 +82,7 @@ async function* decodeStream(
       return;
     }
     if (magic !== BLOCK_MAGIC) throw corrupt('magie de bloc absente');
-    const block = readBlock(bits, tt);
+    const block = readBlock(bits, tt, blockLimit);
     reader.skip(bits.position >>> 3);
     bitOffset = bits.position & 7;
     const crc = new BlockCrc();
@@ -98,7 +106,7 @@ interface Block {
 }
 
 /** Lit un bloc jusqu'au symbole de fin ; remplit `tt` (octet en bits 0-7, lien BWT au-dessus). */
-function readBlock(bits: BitReader, tt: Uint32Array): Block {
+function readBlock(bits: BitReader, tt: Uint32Array, blockLimit: number): Block {
   const storedCrc = (bits.bits(16) * 2 ** 16 + bits.bits(16)) >>> 0;
   if (bits.bit() === 1) {
     throw new FormatError('FORMAT_UNSUPPORTED_COMPRESSION', 'flux bzip2 : bloc randomisé (format obsolète)');
@@ -109,7 +117,7 @@ function readBlock(bits: BitReader, tt: Uint32Array): Block {
   if (groups < 2 || groups > MAX_GROUPS) throw corrupt('nombre de tables invalide');
   const selectors = readSelectors(bits, groups);
   const tables = Array.from({ length: groups }, () => readTable(bits, used.length + 2));
-  const length = readSymbols(bits, tt, used, selectors, tables);
+  const length = readSymbols(bits, tt, blockLimit, used, selectors, tables);
   if (origPtr >= length) throw corrupt("pointeur d'origine hors du bloc");
   linkBwt(tt, length);
   return { storedCrc, origPtr, length };
@@ -167,6 +175,7 @@ function readTable(bits: BitReader, alphabetSize: number): HuffmanTable {
 function readSymbols(
   bits: BitReader,
   tt: Uint32Array,
+  blockLimit: number,
   used: readonly number[],
   selectors: Uint8Array,
   tables: readonly HuffmanTable[],
@@ -196,12 +205,12 @@ function readSymbols(
         run += (symbol + 1) * weight;
         symbol = next();
       }
-      if (length + run > tt.length) throw corrupt('bloc plus long que sa taille déclarée');
+      if (length + run > blockLimit) throw corrupt('bloc plus long que sa taille déclarée');
       tt.fill(atNumber(used, at(mtf, 0)), length, length + run);
       length += run;
       continue;
     }
-    if (length >= tt.length) throw corrupt('bloc plus long que sa taille déclarée');
+    if (length >= blockLimit) throw corrupt('bloc plus long que sa taille déclarée');
     const rank = symbol - 1;
     const value = at(mtf, rank);
     mtf.copyWithin(1, 0, rank);
@@ -231,7 +240,9 @@ function linkBwt(tt: Uint32Array, length: number): void {
 
 /** Parcourt la BWT inverse et défait le codage des répétitions (4 octets égaux + compteur). */
 function* expandBlock(tt: Uint32Array, block: Block): Generator<Uint8Array> {
-  let chunk = new Uint8Array(OUTPUT_CHUNK_BYTES);
+  // Tampon à la mesure du bloc : un petit bloc n'alloue pas 64 Kio (chaque octet en donne au plus 64).
+  const chunkBytes = Math.min(OUTPUT_CHUNK_BYTES, 64 * block.length);
+  let chunk = new Uint8Array(chunkBytes);
   let used = 0;
   let position = at32(tt, block.origPtr) >>> 8;
   let previous = -1;
@@ -256,7 +267,7 @@ function* expandBlock(tt: Uint32Array, block: Block): Generator<Uint8Array> {
       times -= count;
       if (used === chunk.length) {
         yield chunk;
-        chunk = new Uint8Array(OUTPUT_CHUNK_BYTES);
+        chunk = new Uint8Array(chunkBytes);
         used = 0;
       }
     }

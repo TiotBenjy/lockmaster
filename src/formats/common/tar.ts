@@ -46,32 +46,38 @@ const TYPES: Readonly<Record<string, TarEntryType>> = {
 const EXTENDED = new Set(['x', 'g', 'L', 'K']);
 const utf8 = new TextDecoder('utf-8', { fatal: true });
 
-/** Surcharges en attente pour l'entrée suivante (pax `x`, GNU `L` / `K`). */
+/**
+ * Surcharges en attente pour l'entrée suivante (pax `x`, GNU `L` / `K`). Pour qu'un lecteur qui les
+ * ignore et un lecteur qui les applique voient la même archive, elles doivent concorder avec
+ * l'en-tête ustar de l'entrée (voir `reconcile`) ; la taille vient toujours de l'en-tête ustar.
+ */
 interface Pending {
-  path?: string;
-  linkTarget?: string;
-  size?: number;
+  readonly kinds: ReadonlySet<string>;
+  readonly path?: string;
+  readonly linkTarget?: string;
+  readonly size?: number;
 }
+
+const NO_PENDING: Pending = { kinds: new Set() };
 
 export function parseTar(bytes: Uint8Array, options: TarOptions): TarEntry[] {
   const entries: TarEntry[] = [];
-  let pending: Pending = {};
+  let pending = NO_PENDING;
   let offset = 0;
   for (;;) {
     throwIfAborted(options.signal);
-    if (offset === bytes.length && !options.requireEndMarker && Object.keys(pending).length === 0) return entries;
+    if (offset === bytes.length && !options.requireEndMarker && pending.kinds.size === 0) return entries;
     const header = block(bytes, offset);
     if (header.every((byte) => byte === 0)) {
-      if (Object.keys(pending).length > 0) throw invalid(offset, 'en-tête étendu sans entrée');
-      block(bytes, offset + BLOCK);
+      if (pending.kinds.size > 0) throw invalid(offset, 'en-tête étendu sans entrée');
+      checkEnd(bytes, offset, options.requireEndMarker);
       return entries;
     }
     const raw = readHeader(header, offset);
-    const size = pending.size ?? raw.size;
-    const dataEnd = offset + BLOCK + size;
+    const dataEnd = offset + BLOCK + raw.size;
     if (dataEnd > bytes.length) throw new FormatError('FORMAT_TRUNCATED', `tar : données tronquées à ${offset}`);
     const data = bytes.subarray(offset + BLOCK, dataEnd);
-    offset = offset + BLOCK + Math.ceil(size / BLOCK) * BLOCK;
+    offset = offset + BLOCK + Math.ceil(raw.size / BLOCK) * BLOCK;
     if (EXTENDED.has(raw.typeflag)) {
       pending = applyExtended(pending, raw.typeflag, data, options, offset);
       continue;
@@ -80,16 +86,27 @@ export function parseTar(bytes: Uint8Array, options: TarOptions): TarEntry[] {
       throw new FormatError('FORMAT_LIMIT_EXCEEDED', `tar : plus de ${options.maxEntries} entrées`);
     }
     entries.push(buildEntry(raw, pending, data, options));
-    pending = {};
+    pending = NO_PENDING;
   }
 }
 
 interface RawHeader {
   readonly path: string;
   readonly linkTarget: string;
+  /** Champ ustar rempli sur toute sa longueur : il peut tronquer un chemin long (pax ou GNU). */
+  readonly pathFieldFull: boolean;
+  readonly linkFieldFull: boolean;
   readonly typeflag: string;
   readonly mode: number;
   readonly size: number;
+}
+
+/** Après le premier bloc nul : rien d'autre que des zéros (pas d'entrée cachée derrière la fin). */
+function checkEnd(bytes: Uint8Array, offset: number, requireEndMarker: boolean): void {
+  if (requireEndMarker) block(bytes, offset + BLOCK);
+  for (let index = offset; index < bytes.length; index += 1) {
+    if (bytes[index] !== 0) throw invalid(offset, "données après la fin de l'archive");
+  }
 }
 
 function block(bytes: Uint8Array, offset: number): Uint8Array {
@@ -107,6 +124,8 @@ function readHeader(header: Uint8Array, offset: number): RawHeader {
   return {
     path: prefix === '' ? name : `${prefix}/${name}`,
     linkTarget: text(header.subarray(157, 257), offset),
+    pathFieldFull: !header.subarray(0, 100).includes(0),
+    linkFieldFull: !header.subarray(157, 257).includes(0),
     typeflag: String.fromCharCode(at(header, 156)),
     mode: octalNumber(header.subarray(100, 108), offset) & 0o7777,
     size: sizeField(header.subarray(124, 136), offset),
@@ -116,11 +135,12 @@ function readHeader(header: Uint8Array, offset: number): RawHeader {
 function buildEntry(raw: RawHeader, pending: Pending, data: Uint8Array, options: TarOptions): TarEntry {
   const type = TYPES[raw.typeflag];
   if (type === undefined) throw invalid(-1, "type d'entrée non pris en charge");
-  const path = pending.path ?? raw.path;
+  if (pending.size !== undefined && pending.size !== raw.size) throw invalid(-1, 'taille pax différente de ustar');
+  const path = reconcile(pending.path, raw.path, raw.pathFieldFull);
   if (path === '') throw invalid(-1, 'chemin vide');
   if (type !== 'file') {
     if (data.length > 0) throw invalid(-1, "données sur une entrée qui n'en a pas");
-    const linkTarget = pending.linkTarget ?? raw.linkTarget;
+    const linkTarget = reconcile(pending.linkTarget, raw.linkTarget, raw.linkFieldFull);
     const isLink = type === 'symlink' || type === 'hardlink';
     return isLink ? { path, type, mode: raw.mode, size: 0, linkTarget } : { path, type, mode: raw.mode, size: 0 };
   }
@@ -128,6 +148,17 @@ function buildEntry(raw: RawHeader, pending: Pending, data: Uint8Array, options:
     throw new FormatError('FORMAT_LIMIT_EXCEEDED', `tar : entrée de plus de ${options.maxEntryBytes} octets`);
   }
   return { path, type, mode: raw.mode, size: data.length, data: data.slice() };
+}
+
+/**
+ * Chemin étendu (pax, GNU) et chemin ustar doivent concorder : égaux, ou le champ ustar plein en
+ * est le début (troncature écrite par GNU tar). Sinon un lecteur qui ignore l'extension verrait un
+ * autre nom (par exemple `./postinst`) que celui retenu ici.
+ */
+function reconcile(extended: string | undefined, ustar: string, fieldFull: boolean): string {
+  if (extended === undefined || extended === ustar) return ustar;
+  if (fieldFull && extended.startsWith(ustar)) return extended;
+  throw invalid(-1, 'chemin étendu différent du nom ustar');
 }
 
 function applyExtended(
@@ -143,15 +174,27 @@ function applyExtended(
       `tar : en-tête étendu de plus de ${options.maxExtendedHeaderBytes} octets`,
     );
   }
-  if (typeflag === 'g') return pending;
-  if (typeflag === 'L') return { ...pending, path: text(data, offset) };
-  if (typeflag === 'K') return { ...pending, linkTarget: text(data, offset) };
-  return { ...pending, ...parsePax(data, offset) };
+  if (typeflag === 'g') {
+    const global = parsePax(data, offset);
+    if (pending.kinds.size > 0 || Object.keys(global).length > 0) throw invalid(offset, 'en-tête pax global inattendu');
+    return pending;
+  }
+  if (pending.kinds.has(typeflag)) throw invalid(offset, 'en-tête étendu répété');
+  const kinds = new Set([...pending.kinds, typeflag]);
+  if (typeflag === 'L') return { ...pending, kinds, path: text(data, offset) };
+  if (typeflag === 'K') return { ...pending, kinds, linkTarget: text(data, offset) };
+  return { ...pending, ...parsePax(data, offset), kinds };
+}
+
+interface PaxValues {
+  path?: string;
+  linkTarget?: string;
+  size?: number;
 }
 
 /** Enregistrements pax `"<longueur> <clé>=<valeur>\n"` ; seules path, linkpath et size servent. */
-function parsePax(data: Uint8Array, offset: number): Pending {
-  const result: Pending = {};
+function parsePax(data: Uint8Array, offset: number): PaxValues {
+  const result: PaxValues = {};
   let position = 0;
   while (position < data.length) {
     const space = data.indexOf(0x20, position);
@@ -237,7 +280,7 @@ function invalid(offset: number, reason: string): FormatError {
  * barre oblique inverse et caractères de contrôle. Rend '' pour la racine de l'archive.
  */
 export function safeRelativePath(path: string): string {
-  if (path.startsWith('/') || path.includes('\\') || hasControlCharacter(path)) {
+  if (path.startsWith('/') || path.includes('\\') || hasControlCharacter(path) || BIDI_CONTROLS.test(path)) {
     throw invalid(-1, 'chemin interdit');
   }
   const segments = path.split('/').filter((segment) => segment !== '' && segment !== '.');
@@ -245,10 +288,14 @@ export function safeRelativePath(path: string): string {
   return segments.join('/');
 }
 
+/** Contrôles C0, DEL et C1 (docs/02 §3.2). */
 function hasControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
-    if (code < 0x20 || code === 0x7f) return true;
+    if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return true;
   }
   return false;
 }
+
+/** Marques de direction (U+200E, U+200F, U+202A à U+202E, U+2066 à U+2069) : un nom affiché trompeur. */
+const BIDI_CONTROLS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;

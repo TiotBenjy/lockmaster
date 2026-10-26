@@ -34,7 +34,8 @@ export async function readArMembers(source: ByteSource, options: ReadArOptions):
     if (members.length >= options.maxMembers) {
       throw new FormatError('FORMAT_LIMIT_EXCEEDED', `archive ar : plus de ${options.maxMembers} membres`);
     }
-    const member = parseHeader(await source.read(offset, Math.min(HEADER_BYTES, source.size - offset)), offset);
+    const header = await source.read(offset, Math.min(HEADER_BYTES, source.size - offset), options.signal);
+    const member = parseHeader(header, offset);
     if (member.offset + member.size > source.size) {
       throw new FormatError('FORMAT_TRUNCATED', `archive ar : membre à ${offset} plus long que l'archive`);
     }

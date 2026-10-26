@@ -5,7 +5,6 @@
 
 import { Readable, type Transform } from 'node:stream';
 import { constants, createGunzip, createZstdDecompress } from 'node:zlib';
-import { LockmasterError } from '../../domain/errors.js';
 import { decodeBzip2 } from './bzip2/decoder.js';
 import { FormatError, throwIfAborted } from './errors.js';
 import { type FormatLimits, OutputMeter } from './limits.js';
@@ -81,20 +80,25 @@ async function* throughZlib(
   algorithm: string,
 ): AsyncGenerator<Uint8Array> {
   const source = Readable.from(input, { objectMode: false });
-  source.on('error', (error) => engine.destroy(error));
+  // Une erreur de la source (lecture du blob) n'est pas une donnée corrompue : relancée telle quelle.
+  let sourceFailed = false;
+  source.on('error', (error) => {
+    sourceFailed = true;
+    engine.destroy(error);
+  });
   source.pipe(engine);
   try {
     for await (const chunk of engine) yield chunk as Buffer;
   } catch (error) {
-    throw asFormatError(error, algorithm);
+    throw sourceFailed ? error : asFormatError(error, algorithm);
   } finally {
     source.destroy();
     engine.destroy();
   }
 }
 
-function asFormatError(error: unknown, algorithm: string): LockmasterError {
-  if (error instanceof LockmasterError) return error;
+/** Erreur du moteur zlib/zstd (la source a échoué ailleurs) : donnée corrompue ou fenêtre excessive. */
+function asFormatError(error: unknown, algorithm: string): FormatError {
   const code = (error as { code?: unknown }).code;
   if (code === 'ZSTD_error_frameParameter_windowTooLarge') {
     return new FormatError('FORMAT_LIMIT_EXCEEDED', 'flux zstd : fenêtre au-delà de la limite');

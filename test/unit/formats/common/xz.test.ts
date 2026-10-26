@@ -71,6 +71,13 @@ describe('décodeur xz : données corrompues', () => {
 });
 
 describe('décodeur xz : limites (SEC-22)', () => {
+  it('refuse une avalanche de flux vides concaténés (amplification CPU, FORMAT_LIMIT_EXCEEDED)', async () => {
+    const empty = corpusFile('xz/empty.xz');
+    const many = Buffer.concat(Array.from({ length: 10_000 }, () => empty));
+    expect(await codeOf(() => decode(many))).toBe('FORMAT_LIMIT_EXCEEDED');
+    expect((await decode(Buffer.concat([empty, empty]))).length).toBe(0);
+  });
+
   it('refuse une sortie au-delà du budget sans la produire (FORMAT_LIMIT_EXCEEDED)', async () => {
     const zeros = corpusFile('xz/zeros.xz');
     expect(await codeOf(() => decode(zeros, { maxOutputBytes: 2 * MiB }))).toBe('FORMAT_LIMIT_EXCEEDED');

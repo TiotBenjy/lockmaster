@@ -183,6 +183,13 @@ encore durci (`cap_drop`, `read_only`, `tmpfs`) ; à faire avec le client clamd,
 et les droits du socket. Quadlet `repo` : nginx tourne sous l'UID hôte du compte `lockmaster`
 (`keep-id:uid=101`) ; étudier un `UIDMap`/`GIDMap` qui ne projette que le groupe.
 
+Reporté de M1 (revue de `formats/common`) : les décodeurs xz et bzip2 rendent des données avant de
+vérifier le CRC et les tailles de bloc, donc le verdict clamd d'un flux ne compte que si la
+décompression s'est terminée sans erreur. Les `ArrayBuffer` (dictionnaire xz jusqu'à 64 MiB, tableau
+BWT de 3,6 Mo) et la mémoire native de zstd (fenêtre de 128 MiB) échappent aux `resourceLimits` des
+workers : dimensionner le pool en conséquence. L'échéance d'analyse est imposée par
+`worker.terminate()` depuis le fil principal, pas par l'`AbortSignal` (`limits.ts`).
+
 - [ ] Machine à états + table de vérité testée ; jobs persistants (`jobs/`) avec reprise
 - [ ] Pool de `worker_threads` pour l'analyse des paquets (`resourceLimits`, échéance, recréation) ;
       test : bombe de décompression et paquet qui boucle -> worker terminé, paquet en `error`,
