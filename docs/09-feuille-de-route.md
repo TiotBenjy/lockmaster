@@ -202,6 +202,14 @@ exceeded` en `error`, et tester un data.tar plus grand que `MaxScanSize`. RPM : 
 (tag 5010, capacités comme `cap_setuid+ep`) entre dans `sensitive-content` au même titre que
 `FILEMODES`, dont la longueur doit égaler celle de `BASENAMES` (revue du parseur rpm).
 
+Reporté de M1 (revue du parseur apk) : quand l'inventaire lira les membres de données APK, le lecteur
+tar doit accepter et **traiter** les clés pax `APK-TOOLS.checksum.SHA1` (ajoutée par abuild-tar
+`--hash`) et `SCHILY.xattr.*`, aujourd'hui refusées par la liste blanche ; `SCHILY.xattr.security.capability`
+entre dans `sensitive-content` comme `FILECAPS`. Les écarts de lecture d'apk (nom commençant par NUL
+pris pour un bloc de fin, préfixe ustar prioritaire sur un nom long `L`, `K` ignoré, somme de contrôle
+non vérifiée, types inconnus sautés) restent refusés plutôt que reproduits. La règle SEC-02 analyse
+`install_if` (gardé brut dans `control`, syntaxe déjà validée).
+
 - [ ] Machine à états + table de vérité testée ; jobs persistants (`jobs/`) avec reprise
 - [ ] Pool de `worker_threads` pour l'analyse des paquets (`resourceLimits`, échéance, recréation) ;
       test : bombe de décompression et paquet qui boucle -> worker terminé, paquet en `error`,
@@ -220,6 +228,11 @@ Exigences `docs/11` : SEC-03 (clés hors bande, `gpgkey=file://`, empreinte affi
 
 Reporté de M1 (revue du parseur rpm) : le parseur exige l'UTF-8 strict dans toutes les chaînes de
 l'en-tête (fail-closed) ; vérifier sur un corpus de vrais paquets Rocky 9 et 10 qu'aucun n'est refusé.
+
+Reporté de M1 (revue du parseur apk) : passer de vrais `.apk` Alpine 3.20+ au parseur et comparer
+`indexChecksum` au `C:` produit par `apk index`. L'APKINDEX se construit depuis une liste de clés
+autorisées, jamais par recopie de `control` ; `S:` vient de la taille réelle du fichier, et `size` de
+`.PKGINFO` (taille installée) va dans `I:`. `signatures.keyName` ne sert jamais à construire un chemin.
 
 - [ ] `publish/rpm` : primary/filelists/other (+ zst optionnel), repomd, `.asc` ; e2e `dnf install`
       sur Rocky 9 et Rocky 10 avec `gpgcheck=1` et `repo_gpgcheck=1`
