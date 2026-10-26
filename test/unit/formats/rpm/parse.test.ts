@@ -242,6 +242,19 @@ describe('rpmInnerStreams (SEC-01)', () => {
     }
   });
 
+  it('refuse un payload en clair derrière un PAYLOADCOMPRESSOR « gzip » explicite (FORMAT_CORRUPT_STREAM)', async () => {
+    // rpm l'installerait (gzdio, mode transparent de zlib) : refus volontaire, fail-closed.
+    const rpm = buildRpm({ compression: 'none', compressorName: 'gzip' });
+    const iterate = async (): Promise<void> => {
+      for await (const stream of rpmFormat.innerStreams(new BufferSource(rpm), options)) {
+        for await (const _chunk of stream.data) {
+          // consommation complète
+        }
+      }
+    };
+    await expect(iterate()).rejects.toMatchObject({ code: 'FORMAT_CORRUPT_STREAM' });
+  });
+
   it('refuse un compresseur non pris en charge avant de rendre le payload', async () => {
     const iterate = async (): Promise<void> => {
       for await (const stream of rpmFormat.innerStreams(

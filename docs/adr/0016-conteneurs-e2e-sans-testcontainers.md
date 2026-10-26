@@ -51,8 +51,9 @@ quand un jalon en a besoin (M3, M4).
 
 ## Conséquences
 
-- CLAUDE.md (stack, commandes), ADR-0001, `docs/10` et la feuille de route (M4 : clamd « via
-  testcontainers ») sont mis à jour : e2e par la CLI Podman ou Docker.
+- CLAUDE.md (stack, commandes), `docs/10` et la feuille de route (M4 : clamd « via
+  testcontainers ») sont mis à jour : e2e par la CLI Podman ou Docker. ADR-0001, accepté, reste
+  inchangé : sa ligne « Tests » est remplacée par cet ADR.
 - `.claude/agents/test-engineer.md` mentionne encore testcontainers : à corriger par le porteur
   (dossier `.claude/` protégé).
 - Les paquets réels amont (Debian, Rocky, Alpine) sont téléchargés dans les conteneurs jetables par
