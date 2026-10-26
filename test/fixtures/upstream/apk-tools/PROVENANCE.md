@@ -9,3 +9,5 @@
   (`test/version.sh`) compare la sortie de `apk version -t a b`.
 - Deux lignes portent une version invalide (`1.0bc`, `23_foo`) : Lockmaster refuse toute version
   invalide (FORMAT_INVALID), le test le vérifie au lieu de reproduire l'ordre d'apk sur ces cas.
+- Le test e2e `test/e2e/formats/versions.test.ts` rejoue chaque ligne avec `apk version -t` dans des
+  conteneurs Alpine 3.20 et 3.22 (apk-tools 2.14.4 et 2.14.12).
