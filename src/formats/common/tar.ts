@@ -175,7 +175,9 @@ function reconcile(extended: string | undefined, ustar: string, fieldFull: boole
 function isCanonical(path: string): boolean {
   const body = path.startsWith('./') ? path.slice(2) : path;
   const segments = body.split('/');
-  return segments.every((segment, index) => segment !== '.' && (segment !== '' || index === segments.length - 1));
+  return segments.every(
+    (segment, index) => segment !== '.' && segment !== '..' && (segment !== '' || index === segments.length - 1),
+  );
 }
 
 function applyExtended(
