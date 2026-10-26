@@ -43,17 +43,19 @@ comparateurs de versions à dpkg, rpm et apk (vecteurs amont, paires aléatoires
 
 ## Fixtures
 
-- **Jamais de paquets binaires tiers commités.** Les paquets de test sont **générés** par
-  `test/fixtures/build.ts` (écriture native ar/tar/gzip pour deb et apk ; pour rpm, en-têtes
-  construits par un générateur de test) ou construits dans un conteneur (`dpkg-deb`, `rpmbuild`,
-  `abuild`) par un script `test/fixtures/build-real.sh` exécuté en CI et mis en cache.
+- **Jamais de paquets binaires tiers commités.** Les paquets de test sont **générés** en mémoire par
+  les générateurs de `test/fixtures/builders/` (un par format : ar, tar, cpio, xz, bzip2, deb, rpm,
+  apk ; chacun accepte des altérations pour produire un cas malformé), ou construits dans un
+  conteneur (`dpkg-deb`, `rpmbuild`) par les tests e2e (`test/e2e/formats/packages.test.ts`).
 - Paquets réels amont téléchargés **dans des conteneurs jetables uniquement** (jamais commités),
   vérifiés par le gestionnaire de paquets de la distribution, pour valider le parseur sur du contenu
   réel (bash, tzdata, busybox...) : `test/e2e/formats/packages.test.ts`.
 - Fichier EICAR généré à la volée (jamais commité tel quel : il déclenche les antivirus des postes).
-- Corpus de fichiers malformés dans `test/fixtures/malformed/` (générés) : ar tronqué, tar avec
-  `../`, lien symbolique, bombe gzip, en-tête RPM avec offsets hors bornes, `.PKGINFO` géant,
-  champs avec octet nul, XML avec caractères de contrôle.
+- Cas malformés générés dans les tests de chaque format par les générateurs ci-dessus : ar tronqué,
+  tar avec `../`, lien symbolique, bombe gzip, en-tête RPM avec offsets hors bornes, `.PKGINFO`
+  géant, champs avec octet nul, caractères de contrôle. Corpus sur disque produit par de vrais
+  outils (`xz`, `bzip2`, GNU tar) avec son manifeste : `test/fixtures/corpus/`, régénéré par
+  `test/fixtures/corpus-generate.ts`.
 
 ## Tests de sécurité obligatoires (`test/security/`, protégés : SEC-19)
 
