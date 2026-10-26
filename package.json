@@ -1,6 +1,6 @@
 {
   "name": "lockmaster",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Gestionnaire de dépôts APT/RPM/APK privés avec scan de sécurité",
   "license": "MIT",
