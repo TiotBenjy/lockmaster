@@ -135,6 +135,64 @@ describe('parseTar', () => {
     expect(codeOf(archive)).toBe('FORMAT_INVALID');
   });
 
+  it('refuse les clés pax hors liste blanche (GNU.sparse.*, charset...) : renommage caché', () => {
+    const sparse = paxRecords({
+      'GNU.sparse.major': '1',
+      'GNU.sparse.minor': '0',
+      'GNU.sparse.name': './postinst',
+      'GNU.sparse.realsize': '21',
+    });
+    const map = Buffer.from('1\n0\n21\n'.padEnd(512, '\0'));
+    const hidden = buildTar([
+      { path: './control', data: 'Package: a\n' },
+      { path: 'P', type: 'x', data: sparse },
+      { path: './GNUSparseFile.0/postinst', data: Buffer.concat([map, Buffer.from('#!/bin/sh\necho pwned\n')]) },
+    ]);
+    expect(codeOf(hidden)).toBe('FORMAT_INVALID');
+    for (const key of ['hdrcharset', 'charset', 'SCHILY.xattr.security.capability', 'inconnue']) {
+      expect(codeOf(buildTar([{ path: 'P', type: 'x', data: paxRecords({ [key]: 'x' }) }, { path: 'a' }]))).toBe(
+        'FORMAT_INVALID',
+      );
+    }
+    const metadata = paxRecords({
+      mtime: '1.5',
+      atime: '2',
+      ctime: '3',
+      uid: '0',
+      gid: '0',
+      uname: 'root',
+      gname: 'root',
+    });
+    expect(parseTar(buildTar([{ path: 'P', type: 'x', data: metadata }, { path: 'a' }]), OPTIONS)).toHaveLength(1);
+  });
+
+  it('refuse un nom ustar tronqué non canonique que prolonge un chemin étendu', () => {
+    const padded = `${'./'.repeat(46)}postinst`;
+    expect(Buffer.byteLength(padded)).toBe(100);
+    for (const ustar of [padded, `./${'a/'.repeat(10)}/${'b'.repeat(77)}`, `./${'a/./'.repeat(5)}${'c'.repeat(78)}`]) {
+      const archive = buildTar([
+        { path: 'P', type: 'x', data: paxRecords({ path: `${ustar}.dpkg-new` }) },
+        { path: ustar, data: 'x' },
+      ]);
+      expect(codeOf(archive)).toBe('FORMAT_INVALID');
+    }
+  });
+
+  it('refuse deux sources de chemin ou de cible pour la même entrée (pax et GNU)', () => {
+    const viaBoth = buildTar([
+      { path: 'P', type: 'x', data: paxRecords({ path: `${LONG}-pax` }) },
+      { path: 'L', type: 'L', data: `${LONG}-gnu\0`, format: 'gnu' },
+      { path: LONG, data: 'x' },
+    ]);
+    expect(codeOf(viaBoth)).toBe('FORMAT_INVALID');
+    const linkBoth = buildTar([
+      { path: 'P', type: 'x', data: paxRecords({ linkpath: `${LONG}-pax` }) },
+      { path: 'K', type: 'K', data: `${LONG}-gnu\0`, format: 'gnu' },
+      { path: 'l', type: '2', linkTarget: LONG },
+    ]);
+    expect(codeOf(linkBoth)).toBe('FORMAT_INVALID');
+  });
+
   it('refuse un en-tête étendu répété avant la même entrée', () => {
     const twice = buildTar([
       { path: 'P', type: 'x', data: paxRecords({ mtime: '1' }) },

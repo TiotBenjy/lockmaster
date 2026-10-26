@@ -33,6 +33,10 @@ describe('archives GNU tar de référence', () => {
     ]);
   });
 
+  it('sparse.tar : fichier creux GNU (clés GNU.sparse.*) refusé', () => {
+    expect(() => listing('sparse.tar')).toThrowError(expect.objectContaining({ code: 'FORMAT_INVALID' }));
+  });
+
   it('ustar.tar : chemin long réparti entre préfixe et nom', () => {
     expect(listing('ustar.tar')).toEqual([...COMMON, 'file 755 17 ./postinst']);
   });
