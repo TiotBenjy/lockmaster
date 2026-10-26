@@ -73,12 +73,22 @@ apk-tools `test/version.data`) : copier les fichiers de données de test avec le
 2. `control.tar.*` : décompresser **en flux borné** (<= 10 MiB décompressé), lire `./control`
    (obligatoire), noter la présence de `preinst`, `postinst`, `prerm`, `postrm`, `config`,
    `triggers`. Rejeter liens symboliques/durs et chemins absolus dans `control.tar`.
-3. `data.tar.*` : **non décompressé** par défaut (inutile pour publier). Option de politique
-   `inspect_data` : parcours en flux pour détecter setuid/setgid, fichiers world-writable,
-   chemins hors FHS : signaux d'alerte, pas de blocage par défaut.
+3. `data.tar.*` : jamais extrait et inutile pour publier, mais décompressé en flux pour l'antivirus
+   (SEC-01). Pendant cette même lecture, l'inventaire des entrées est **obligatoire** (pas une
+   option) : fichiers setuid/setgid, périphériques, fichiers world-writable, et chemins qui
+   s'exécutent en root sans script mainteneur (`/etc/cron*`, `/etc/apt/apt.conf.d/`,
+   `/etc/sudoers.d/`, `/etc/ld.so.preload`, `/etc/udev/rules.d/`, `/lib/udev/rules.d/`, unités systemd,
+   `/etc/profile.d/`). Ce sont des faits de la règle intégrée `sensitive-content` (SEC-02, `docs/04`).
+   Même inventaire pour les fichiers d'un RPM (en-tête : `FILEMODES`, `BASENAMES`) et le membre
+   données d'un APK. Réalisation : M4 (décision de la revue de sécurité du parseur deb, 2026-10-26).
 4. Parser `control` (format RFC 822 Debian : champs, continuation par espace, ` .` = ligne vide).
    Champs requis : `Package`, `Version`, `Architecture`, `Maintainer`, `Description`.
    Regex `Package` : `^[a-z0-9][a-z0-9+.-]+$`. `Architecture` dans la liste du dépôt ou `all`.
+5. Champs réservés refusés dans `control` (quelle que soit la casse) : ceux que l'archive écrit
+   elle-même dans `Packages` (`Filename`, `Size`, `MD5sum`, `SHA1`, `SHA256`, `SHA512`,
+   `Description-md5`) et ceux de la base de statut de dpkg (`Status`, `Config-Version`, `Conffiles`).
+   `Packages` se construit à partir d'une liste de champs autorisés, jamais par recopie du contrôle,
+   et toute recherche de champ y est insensible à la casse (M3).
 
 ### 2.2 Arborescence publiée (par canal)
 

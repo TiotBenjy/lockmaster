@@ -47,7 +47,8 @@ stateDiagram-v2
   champs obligatoires ; regex nom/version ; pour l'import amont : hash = hash de l'index signé.
 - Inventaire des scripts mainteneur (noms + taille + hash ; contenu affiché à la revue,
   échappé, jamais exécuté).
-- Optionnel `inspect_data` : setuid/setgid, fichiers world-writable, chemins suspects.
+- Inventaire obligatoire du contenu, pendant la lecture faite pour l'antivirus (`docs/03` §2.1) :
+  setuid/setgid, périphériques, world-writable, chemins sensibles exécutés en root sans script.
 
 ### 2.3 ClamAV (`src/scan/clamd.ts`)
 
@@ -124,7 +125,9 @@ rules:                        # évaluées dans l'ordre, la PLUS SÉVÈRE l'empo
   #   epoch-change     changement d'epoch par rapport à la version précédente  -> review
   #   shadowing        Obsoletes/Replaces/Provides/Conflicts/Breaks/install_if visant un nom
   #                    protégé ou appartenant à un autre dépôt                 -> review
-  #   essential        Essential: yes / Protected: yes / setuid-setgid         -> review
+  #   essential        Essential: yes / Protected: yes                         -> review
+  #   sensitive-content setuid/setgid, périphérique, cron, apt.conf.d, sudoers.d,
+  #                    ld.so.preload, règles udev, unités systemd, profile.d   -> review
   #   version-jump     version > dernière version amont connue du même nom     -> review
 waivers_apply_to: [warn, review, block]   # un waiver actif neutralise la règle pour ce CVE
 sla:                          # délais de traitement de la file de revue
@@ -141,6 +144,7 @@ Faits supplémentaires calculés pour les règles intégrées (SEC-02) : `is_new
 (nom présent dans `upstream_package` d'une source indexée pour la même distribution),
 `name_allowed` (motifs `repository.allowed_names`), `epoch_changed`, `shadows` (liste des noms visés
 par `Obsoletes`/`Replaces`/`Provides`/`Conflicts`/`Breaks`/`install_if`), `essential`, `has_setuid`,
+`sensitive_paths` (entrées du contenu sous les chemins listés pour `sensitive-content`),
 `exceeds_upstream_version`. Les paquets importés depuis un amont signé (`origin: import|mirror`)
 sont exemptés de `protected-name` et `version-jump` (c'est leur nature).
 
