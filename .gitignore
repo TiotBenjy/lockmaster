@@ -5,7 +5,8 @@ out/
 coverage/
 *.tsbuildinfo
 
-# Données locales de développement (base, blobs, clés générées)
+# Configuration et données locales de développement (base, blobs, clés générées)
+lockmaster.dev.toml
 .data/
 .data-keys/
 .data-repo/
@@ -20,11 +21,9 @@ secrets/
 deploy/lockmaster.toml
 deploy/tls/
 
+# Configuration locale des outils de développement (jamais publiée)
 
 # Divers
 .DS_Store
 *.log
-
-
-# Python (outil de recherche du skill UI)
 __pycache__/
