@@ -75,6 +75,15 @@ describe('scripts/check-forbidden.mjs', () => {
     expect(result.status).toBe(0);
   });
 
+  it('ignore les répertoires cachés de configuration locale, mais contrôle .github', () => {
+    const local = tree({ '.local-tool/notes.md': `${EM_DASH}\n` });
+    expect(runScript(SCRIPT, [local]).status).toBe(0);
+    const github = tree({ '.github/workflows/ci.yml': `name: ci ${EM_DASH}\n` });
+    const result = runScript(SCRIPT, [github]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('.github/workflows/ci.yml');
+  });
+
   it('le dépôt lui-même respecte toutes les règles', () => {
     const result = runScript(SCRIPT, []);
     expect(result.stderr).toBe('');

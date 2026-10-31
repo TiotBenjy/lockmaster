@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-// Contrôle CI des motifs interdits (CONVENTIONS.md §Invariants, §Style d'écriture ; docs/09 M0).
-// Mêmes règles que les hooks .agent/hooks/guard-forbidden-patterns.mjs, appliquées à tout le dépôt :
-// les hooks corrigent tôt, ce script est le contrôle. Usage : node scripts/check-forbidden.mjs [racine]
+// Contrôle CI des motifs interdits (CONVENTIONS.md §Invariants, §Style d'écriture ; docs/09 M0), appliqué
+// à tout le dépôt. Les répertoires cachés (configuration locale d'outils) sont ignorés, sauf .github.
+// Usage : node scripts/check-forbidden.mjs [racine]
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { aiTypoFindings } from '../.agent/hooks/lib.mjs';
+import { aiTypoFindings } from './lib/typography.mjs';
 
 const root = resolve(process.argv[2] ?? join(import.meta.dirname, '..'));
 
-const SKIPPED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'coverage', '.data', '.data-keys', 'worktrees']);
+const SKIPPED_DIRS = new Set(['node_modules', 'dist', 'out', 'coverage']);
+const SCANNED_HIDDEN_DIRS = new Set(['.github']);
 const TEXT_FILE =
   /\.(md|ts|tsx|mts|cts|js|mjs|cjs|json|toml|ya?ml|sql|css|sh|conf|service|socket|container|network|volume|txt|html|tsv|csv)$|(^|\/)(Containerfile|Dockerfile|CODEOWNERS)$/;
-const VENDORED =
-  /^(src\/web\/static\/(fonts|vendor)\/|test\/fixtures\/(corpus|upstream)\/)|(^|\/)LICENSE[^/]*$/;
+const VENDORED = /^(src\/web\/static\/(fonts|vendor)\/|test\/fixtures\/(corpus|upstream)\/)|(^|\/)LICENSE[^/]*$/;
 
 const SRC_RULES = [
   [
@@ -43,7 +43,8 @@ function* walk(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!SKIPPED_DIRS.has(entry.name)) yield* walk(full);
+      const hidden = entry.name.startsWith('.') && !SCANNED_HIDDEN_DIRS.has(entry.name);
+      if (!hidden && !SKIPPED_DIRS.has(entry.name)) yield* walk(full);
     } else if (entry.isFile() && lstatSync(full).isFile()) {
       yield relative(root, full).split(sep).join('/');
     }
