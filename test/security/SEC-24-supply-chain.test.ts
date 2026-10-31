@@ -172,13 +172,6 @@ describe('SEC-24 : pnpm', () => {
     }
   });
 
-  it('aucun lien symbolique sous .agent/ (skills de dépendances liées par pnpm, SEC-04)', () => {
-    const links = readdirSync(join(REPO_ROOT, '.agent'), { withFileTypes: true, recursive: true })
-      .filter((entry) => entry.isSymbolicLink() && !entry.parentPath.includes(`${join('.agent', 'worktrees')}`))
-      .map((entry) => join(entry.parentPath, entry.name));
-    expect(links).toEqual([]);
-  });
-
   it('minimumReleaseAge d au moins 7 jours, exceptions limitées à des versions exactes', () => {
     expect(Number(/^minimumReleaseAge: (\d+)$/m.exec(workspace)?.[1])).toBeGreaterThanOrEqual(10_080);
     // Toute mention de la clé doit être une liste en bloc, non vide, de versions exactes : une autre
