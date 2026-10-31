@@ -35,6 +35,8 @@ async function bundle(entry, file) {
     target: 'node24',
     format: 'esm',
     external: ['better-sqlite3'],
+    // Migrations SQL embarquées comme texte (src/db/migrations/*.sql), comme sous vitest et pnpm dev.
+    loader: { '.sql': 'text' },
     banner: { js: banner },
     legalComments: 'none',
     logLevel: 'warning',
