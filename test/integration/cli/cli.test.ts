@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cli, freePort, installation } from '../../helpers/cli.js';
 
@@ -186,6 +187,21 @@ describe('lockmaster init', () => {
     const insecure = await cli(['init', '--non-interactive', '--admin-password-file', password, '--config', config]);
     expect(insecure.code).toBe(78);
     expect(insecure.stderr).toContain('others');
+  });
+
+  it('applique le schéma ; serve refuse (78) une base plus récente que le programme', async () => {
+    const { config, dataDir } = await setup();
+    expect((await cli(['init', '--non-interactive', '--config', config])).code).toBe(0);
+    const db = new Database(join(dataDir, 'lockmaster.db'));
+    try {
+      expect(db.prepare('SELECT version, name FROM schema_migration').all()).toEqual([{ version: 1, name: 'init' }]);
+      db.prepare("INSERT INTO schema_migration (version, name, sha256, applied_at) VALUES (99, 'futur', 'x', 0)").run();
+    } finally {
+      db.close();
+    }
+    const result = await cli(['serve', '--config', config]);
+    expect(result.code).toBe(78);
+    expect(result.stderr).toContain('plus récent');
   });
 
   it("refuse une base existante qui n'est pas une base lockmaster", async () => {

@@ -71,7 +71,8 @@ const OPTIONS = {
 } as const;
 
 // Erreurs de configuration ou d'installation : code 78, inutile de relancer (RestartPreventExitStatus).
-const CONFIG_ERROR = /^(CONFIG_|PATH_|NOT_INITIALIZED$|SECRET_FILE_|MASTER_KEY_)/;
+// Une base plus récente que le programme ou une migration modifiée ne se corrige pas en relançant.
+const CONFIG_ERROR = /^(CONFIG_|PATH_|NOT_INITIALIZED$|SECRET_FILE_|MASTER_KEY_|DB_TOO_NEW$|DB_MIGRATION_MISMATCH$)/;
 
 function usage(): string {
   const lines = COMMANDS.map((command) => `  lockmaster ${command.words.join(' ').padEnd(20)} ${command.summary}`);
