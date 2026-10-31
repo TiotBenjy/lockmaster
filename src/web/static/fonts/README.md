@@ -7,7 +7,7 @@
 
 ## Pourquoi celles-ci
 
-- Recommandation du skill `ui-ux-pro-max` pour le style retenu (« Minimal Swiss » : Inter, pour
+- Recommandation de la base de règles `ui-ux-pro-max` pour le style retenu (« Minimal Swiss » : Inter, pour
   tableaux de bord, consoles d'administration, applications d'entreprise ; `docs/12` §1).
 - Inter est dessinée pour l'écran aux petites tailles (14 à 16 px), a des chiffres tabulaires
   (`tnum`, indispensables aux tableaux) et un rendu identique sur Linux, Windows et macOS,
@@ -41,7 +41,7 @@ vietnamien : l'UI est en français et les données de paquets restent lisibles a
 - Servies depuis `'self'` uniquement : la CSP contient `font-src 'self'` (ADR-0004 amendé) ; jamais
   de Google Fonts ni de CDN.
 - Modifier ou ajouter une police : mêmes vérifications, mise à jour de `SHA256SUMS`, de ce fichier
-  et de `docs/12` §3, dans un worktree `chore-...`.
+  et de `docs/12` §3, dans une branche `chore/...`.
 - La licence OFL autorise la redistribution avec l'application à condition de joindre la licence
   (`LICENSE-*.txt`, à copier aussi dans le paquet `.deb`/`.rpm` et l'image, sous
   `/usr/share/doc/lockmaster/fonts/`).

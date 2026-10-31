@@ -3,7 +3,7 @@ import type Database from 'better-sqlite3';
 import { LockmasterError } from '../domain/errors.js';
 
 // Moteur de migrations SQLite commun à la base de l'application (src/db/) et à celle du signataire
-// (src/signer/), qui ne partagent rien d'autre (ADR-0009). Règles (ADR-0002, skill migration-sql) :
+// (src/signer/), qui ne partagent rien d'autre (ADR-0009). Règles (ADR-0002, docs/05) :
 //  - migrations numérotées 1, 2, 3... sans trou, une transaction par migration ;
 //  - l'empreinte SHA-256 de chaque migration appliquée est enregistrée : une migration modifiée
 //    après coup, ou une base plus récente que le code, est refusée (jamais de retour arrière) ;

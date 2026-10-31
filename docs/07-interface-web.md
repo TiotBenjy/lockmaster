@@ -3,7 +3,7 @@
 Rendu serveur TSX + htmx (ADR-0004) + réactivité locale par composants **Alpine.js build CSP**
 (ADR-0011). Objectif : chaque page <= ~250 lignes, composants partagés dans `src/web/components/`.
 Apparence, composants, états et accessibilité : **`docs/12-systeme-de-design.md`** (normatif) ;
-règles d'application : `.agent/rules/ui.md` ; référentiel UX : skill `ui-ux-pro-max`.
+liste de contrôle avant livraison : `docs/12` §12.
 
 ## Pages
 

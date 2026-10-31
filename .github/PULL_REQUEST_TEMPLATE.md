@@ -14,7 +14,7 @@
 
 - [ ] Tests écrits **avant** le code (TDD) ; un correctif commence par un test qui reproduit le bogue.
 - [ ] `pnpm check` et `pnpm test` passent ; `pnpm test:e2e` aussi si formats, publication, import ou livraison sont touchés.
-- [ ] Aucun invariant de sécurité de `CONVENTIONS.md` n'est affaibli ; revue `security-reviewer` faite pour les zones sensibles.
+- [ ] Aucun invariant de sécurité de `CONVENTIONS.md` n'est affaibli ; revue de sécurité faite pour les zones sensibles.
 - [ ] Toute décision d'architecture nouvelle a son ADR (`docs/adr/`).
 - [ ] Documentation à jour (`docs/`), y compris la feuille de route si un critère est atteint.
 - [ ] Toute nouvelle dépendance est justifiée (alternative native, maintenance, dépendances transitives) et sous licence compatible MIT.

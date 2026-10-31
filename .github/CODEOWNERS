@@ -9,6 +9,7 @@
 /.github/                 @TiotBenjy
 /test/security/           @TiotBenjy
 /packaging/versions.env   @TiotBenjy
+/CONVENTIONS.md           @TiotBenjy
 /SECURITY.md              @TiotBenjy
 
 # Code sensible (CONVENTIONS.md §Méthode, point 4)

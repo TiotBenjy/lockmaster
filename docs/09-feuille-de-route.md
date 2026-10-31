@@ -4,7 +4,7 @@ Règles :
 - Un jalon = une branche, livrable seul, avec tests. Ne pas commencer M(n+1) avant que
   **tous** les critères de M(n) soient cochés.
 - Chaque jalon se termine par `pnpm check && pnpm test` verts (+ `pnpm test:e2e` à partir de M3),
-  une revue `security-reviewer`, et la mise à jour de cette page (cases cochées).
+  une revue de sécurité, et la mise à jour de cette page (cases cochées).
 - Si un critère est irréaliste, l'écrire ici avec la raison et ouvrir un ADR ; ne jamais
   le cocher sans le faire.
 
@@ -46,7 +46,7 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
 - [x] Tests de garde : grep CI interdisant `child_process.exec(`, `eval(`, `new Function`,
       `dangerouslySetInnerHTML`, `NODE_TLS_REJECT_UNAUTHORIZED` dans `src/`, `x-html`, `hx-on`,
       `style=` et `import 'alpinejs'` dans `src/web/`, ainsi que les caractères typographiques
-      interdits par CONVENTIONS.md §Style d'écriture dans les fichiers du projet (mêmes règles que les hooks)
+      interdits par CONVENTIONS.md §Style d'écriture dans les fichiers du projet
 - [x] Tous les scripts pnpm de `CONVENTIONS.md` §Commandes existent (même vides pour `test:e2e`/`test:fuzz`)
 - [x] `pnpm build` (esbuild -> `dist/lockmaster.mjs`, better-sqlite3 en external copié), `packaging/versions.env`, `packaging/nfpm.yaml` (.deb + .rpm, Node 24
       embarqué et vérifié par SHA-256, unité systemd durcie, utilisateur `lockmaster`, conffile)
@@ -141,7 +141,7 @@ fichiers produits par de vrais outils) : `docs/10` §Fixtures décrit cette orga
 `src/formats` : 100 % des lignes et des branches. Au-delà des critères, `pnpm test:e2e` confronte les
 trois comparateurs de versions à dpkg, rpm et apk, et les trois parseurs à de vrais paquets de
 Debian 12 et 13, Rocky 9 et 10, Alpine 3.20 et 3.22 (`docs/10`) ; cela a révélé trois refus à tort de
-vrais RPM, corrigés ; ces tests tournent en CI (job « Tests e2e »). Revues `security-reviewer` :
+vrais RPM, corrigés ; ces tests tournent en CI (job « Tests e2e »). Revues de sécurité :
 verdict OK pour `formats/common`, deb, rpm, apk et le correctif rpm. ADR-0015 (décompression et tar
 sans dépendance) et ADR-0016 (conteneurs e2e sans testcontainers) acceptés par le porteur le
 2026-10-26 : **M1 est clos**. Les points ouverts de M0 sont fermés le 2026-10-29, hors constat
@@ -359,7 +359,7 @@ SELinux en mode `Enforcing`, et constater `httpd_sys_content_t` sur `/srv/lockma
 (`ls -Zd`) ; puis cocher le critère de sortie de M0.
 
 - [ ] Fuzzing long sur tous les parseurs (30 min chacun) sans échec
-- [ ] Revue `/revue-securite all` sans constat bloquant ; checklist `docs/10-tests.md`
+- [ ] Revue de sécurité de tout le code sans constat bloquant ; checklist `docs/10-tests.md`
 - [ ] Tests de charge : 100 000 paquets dans un dépôt, publication < 60 s, `apt update` < 2 s
 - [ ] Livrables signés (cosign pour l'image, signature des .deb/.rpm), SBOM, notes de version
 - [ ] Publication des paquets Lockmaster dans une instance Lockmaster (dogfooding)

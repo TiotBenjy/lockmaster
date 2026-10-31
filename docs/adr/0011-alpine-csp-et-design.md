@@ -39,8 +39,8 @@ les faire en JS ad hoc éparpille du code non testé. La CSP stricte d'ADR-0004 
 7. **Système de design** : `docs/12-systeme-de-design.md` (jetons de couleur vérifiés AA en clair
    et en sombre, typographie système, icônes Phosphor générées en TSX, composants et états,
    mouvement minimal), polices **Inter** et **JetBrains Mono** (OFL) livrées dans
-   `src/web/static/fonts/` avec licences et `SHA256SUMS`, jamais chargées depuis un tiers ; dérivé du skill `ui-ux-pro-max` vendorisé dans `.agent/skills/` et adapté
-   aux contraintes du projet. Règles d'application : `.agent/rules/ui.md`.
+   `src/web/static/fonts/` avec licences et `SHA256SUMS`, jamais chargées depuis un tiers ; dérivé de la base de règles `ui-ux-pro-max` (MIT) et adapté
+   aux contraintes du projet.
 
 Composants Alpine prévus : `navDisclosure`, `menu`, `tabs`, `listFilter` (filtre instantané d'une
 liste déjà rendue), `formValidation`, `confirmDialog`, `copyButton`, `secretOnce`, `themeToggle`,
@@ -67,7 +67,7 @@ liste déjà rendue), `formValidation`, `confirmDialog`, `copyButton`, `secretOn
 - Le hook d'Alpine `x-cloak` impose la règle CSS `[x-cloak]{display:none!important}` dans `app.css`.
   `x-show` modifie `element.style` par le CSSOM, ce que la CSP autorise (seuls les attributs `style=`
   dans le balisage sont bloqués) ; vérifié par les tests Playwright « zéro violation CSP ».
-- Avant M6, l'agent `researcher` vérifie dans la documentation officielle d'Alpine le sous-ensemble
+- Avant M6, on vérifie dans la documentation officielle d'Alpine le sous-ensemble
   d'expressions accepté par la build CSP de la version épinglée ; notre règle (références simples)
   doit en être un sous-ensemble.
 - Tests : unitaires sur les fabriques (état, méthodes) avec vitest (+ happy-dom si `$el`/`$refs`),
