@@ -4,9 +4,12 @@ import type { DestinationStream } from 'pino';
 import { defaultAllowedGids, readSecretFile } from '../config/secret-file.js';
 import { parseMasterKey } from '../crypto/master-key.js';
 import { LockmasterError } from '../domain/errors.js';
+import type { Clock } from '../domain/ports.js';
 import { encodeFrame, FrameReader, parseRequest, type SignerRequest } from '../domain/signer-protocol.js';
 import { createLogger, type Logger } from '../log.js';
+import { signerSystemClock } from './clock.js';
 import type { SignerConfig } from './config.js';
+import { migrateSignerDatabase } from './migrations.js';
 import { expectedSocketGroup, listenOnFd, listenOnPath } from './socket.js';
 import { isSignerDatabase, openSignerDatabase, signerDatabasePath } from './store.js';
 
@@ -22,6 +25,7 @@ export interface SignerStartOptions {
   /** Descripteur transmis par systemd (activation par socket) ; sinon écoute sur server.socket. */
   fd?: number;
   logDestination?: DestinationStream;
+  clock?: Clock;
 }
 
 export interface RunningSigner {
@@ -49,7 +53,7 @@ export function keyGroups(config: SignerConfig): number[] {
   return defaultAllowedGids().filter((gid) => gid === 0 || gid !== socketGroup);
 }
 
-function preflight(config: SignerConfig) {
+function preflight(config: SignerConfig, clock: Clock) {
   const keyFile = config.security.master_key_file;
   if (!existsSync(keyFile)) throw notInitialized(`clé maîtresse du signataire absente (${keyFile})`);
   parseMasterKey(readSecretFile(keyFile, { allowedGids: keyGroups(config) }));
@@ -59,6 +63,12 @@ function preflight(config: SignerConfig) {
   if (!isSignerDatabase(db)) {
     db.close();
     throw notInitialized(`base du signataire non initialisée (${path})`);
+  }
+  try {
+    migrateSignerDatabase(db, clock.now().getTime());
+  } catch (error) {
+    db.close();
+    throw error;
   }
   return db;
 }
@@ -105,7 +115,7 @@ function serveConnection(socket: Socket, logger: Logger, limits: SignerConfig['s
 }
 
 export async function startSigner(config: SignerConfig, options: SignerStartOptions = {}): Promise<RunningSigner> {
-  const db = preflight(config);
+  const db = preflight(config, options.clock ?? signerSystemClock);
   const logger = createLogger(config.log, options.logDestination);
   const connections = new Set<Socket>();
   const server = createServer((socket) => {

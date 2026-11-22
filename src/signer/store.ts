@@ -2,8 +2,8 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { LockmasterError } from '../domain/errors.js';
 
-// Base propre du signataire (signer.db, ADR-0009), distincte de celle de l'application. Au jalon M0
-// elle ne porte que son marqueur ; clés chiffrées et journal de signatures chaîné arrivent en M2.
+// Base propre du signataire (signer.db, ADR-0009), distincte de celle de l'application : marqueur
+// application_id, clés scellées (keystore-sqlite.ts) et journal de signatures chaîné (journal.ts).
 
 export type SignerDb = Database.Database;
 
@@ -17,6 +17,9 @@ export function openSignerDatabase(path: string, options: { create: boolean }): 
     const db = new Database(path, { fileMustExist: !options.create });
     db.pragma('journal_mode = WAL');
     db.pragma('busy_timeout = 5000');
+    db.pragma('foreign_keys = ON');
+    // Sans lui, INSERT OR REPLACE supprime une ligne sans déclencher les triggers BEFORE DELETE.
+    db.pragma('recursive_triggers = ON');
     return db;
   } catch (error) {
     throw new LockmasterError('SIGNER_DB_UNAVAILABLE', `base ${path} inutilisable : ${(error as Error).message}`);

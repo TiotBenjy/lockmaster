@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { encodeFrame } from '../../../src/domain/signer-protocol.js';
 import { loadSignerConfig } from '../../../src/signer/config.js';
 import { startSigner } from '../../../src/signer/server.js';
+import { openSignerDatabase } from '../../../src/signer/store.js';
 import { createSignerClient } from '../../../src/signer-client/client.js';
 import { LogCapture } from '../../helpers/deps.js';
 import { decodeResponse, orphanSocket, rawExchange, signerCli, signerInstallation } from '../../helpers/signer.js';
@@ -47,6 +48,52 @@ describe('lockmaster signer init / serve', () => {
     expect(statSync(install.dataDir).mode & 0o777).toBe(0o700);
     expect(existsSync(join(install.dataDir, 'signer.db'))).toBe(true);
     expect((await signerCli(['init', '--config', install.config])).code).toBe(0);
+  });
+
+  it("init applique le schéma de la base (docs/05) ; la base s'ouvre avec les clés étrangères actives", async () => {
+    const install = await initialized();
+    const db = openSignerDatabase(join(install.dataDir, 'signer.db'), { create: false });
+    try {
+      expect(db.prepare('SELECT version, name FROM schema_migration').all()).toEqual([{ version: 1, name: 'signer' }]);
+      expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+      expect(db.pragma('recursive_triggers', { simple: true })).toBe(1);
+      const tables = db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name").all();
+      expect(tables).toEqual([
+        { name: 'key' },
+        { name: 'rate_window' },
+        { name: 'schema_migration' },
+        { name: 'signature_log' },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("serve applique les migrations en attente d'une base initialisée avant elles", async () => {
+    const install = signerInstallation();
+    cleanups.push(install.cleanup);
+    expect((await signerCli(['init', '--config', install.config])).code).toBe(0);
+    const path = join(install.dataDir, 'signer.db');
+    const raw = new Database(path);
+    raw.exec('DROP TABLE signature_log; DROP TABLE rate_window; DROP TABLE key; DROP TABLE schema_migration;');
+    raw.close();
+    const signer = await startSigner(loadSignerConfig({ path: install.config, env: {} }), {
+      logDestination: new LogCapture(),
+    });
+    cleanups.push(() => signer.stop());
+    const db = new Database(path, { readonly: true });
+    expect(db.prepare('SELECT count(*) AS n FROM schema_migration').get()).toEqual({ n: 1 });
+    db.close();
+  });
+
+  it('serve refuse de démarrer sur une base plus récente que le programme', async () => {
+    const install = await initialized();
+    const raw = new Database(join(install.dataDir, 'signer.db'));
+    raw.prepare("INSERT INTO schema_migration (version, name, sha256, applied_at) VALUES (2, 'future', 'x', 0)").run();
+    raw.close();
+    await expect(
+      startSigner(loadSignerConfig({ path: install.config, env: {} }), { logDestination: new LogCapture() }),
+    ).rejects.toMatchObject({ code: 'DB_TOO_NEW' });
   });
 
   it("refuse une clé de la configuration de l'application (clé inconnue)", async () => {

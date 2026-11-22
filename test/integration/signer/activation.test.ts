@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createSignerClient } from '../../../src/signer-client/client.js';
-import { REPO_ROOT } from '../../helpers/run-script.js';
+import { REPO_ROOT, TSX_IMPORTS } from '../../helpers/run-script.js';
 import { signerCli, signerInstallation } from '../../helpers/signer.js';
 
 // Activation par socket (lockmaster-signer.socket) : le signataire reçoit un socket Unix déjà à
@@ -32,8 +32,8 @@ function activatedSigner(config: string, fd: number) {
   const child = spawn(
     process.execPath,
     [
-      '--import',
-      'tsx',
+      // tsx et le chargeur des migrations .sql, comme `pnpm dev`.
+      ...TSX_IMPORTS,
       join(REPO_ROOT, 'test/fixtures/signer-activated.ts'),
       'serve',
       '--socket-activation',
