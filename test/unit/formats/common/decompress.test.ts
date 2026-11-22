@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { asCompression, decompress, decompressToBuffer } from '../../../../src/formats/common/decompress.js';
 import { FormatError } from '../../../../src/formats/common/errors.js';
 import { DEFAULT_LIMITS } from '../../../../src/formats/common/limits.js';
+import { expectSameBytes } from '../../../helpers/bytes.js';
 import { corpusFile } from './corpus.js';
 
 const MiB = 1024 * 1024;
@@ -48,7 +49,7 @@ describe('decompress', () => {
     ['gzip', Buffer.concat([gzipSync(payload.subarray(0, 1000)), gzipSync(payload.subarray(1000))])],
     ['zstd', zstdCompressSync(payload)],
   ] as const)('restitue les données (%s)', async (compression, input) => {
-    expect(await decompressToBuffer(chunked(input), compression, options)).toEqual(payload);
+    expectSameBytes(await decompressToBuffer(chunked(input), compression, options), payload);
   });
 
   it('diffuse la sortie en plusieurs morceaux', async () => {

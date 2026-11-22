@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ByteSource } from '../../src/formats/common/source.js';
+import { expectSameBytes } from '../helpers/bytes.js';
 
 /** Contenu de test : octets distincts pour repérer tout décalage. */
 const CONTENT = Uint8Array.from({ length: 200_000 }, (_, index) => (index * 7 + 3) % 251);
@@ -37,8 +38,8 @@ export function describeByteSourceContract(make: (content: Uint8Array) => ByteSo
 
     it('diffuse une plage en morceaux dont la concaténation est la plage', async () => {
       const source = make(CONTENT);
-      expect(await collect(source.stream(0, CONTENT.length))).toEqual(CONTENT);
-      expect(await collect(source.stream(70_000, 100_001))).toEqual(CONTENT.subarray(70_000, 170_001));
+      expectSameBytes(await collect(source.stream(0, CONTENT.length)), CONTENT);
+      expectSameBytes(await collect(source.stream(70_000, 100_001)), CONTENT.subarray(70_000, 170_001));
       expect(await collect(source.stream(10, 0))).toEqual(new Uint8Array(0));
     });
 
