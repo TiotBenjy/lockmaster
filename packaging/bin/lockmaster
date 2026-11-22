@@ -17,4 +17,9 @@ if [ "${1-}" = signer ]; then
   heap_mb=256
 fi
 
+# Pool de fils de libuv (4 par défaut) : scrypt y occupe jusqu'à 4 fils (docs/02 §3.3) ; sans marge, une
+# rafale de connexions bloquerait les écritures de fichiers et les résolutions DNS de l'application.
+: "${UV_THREADPOOL_SIZE:=16}"
+export UV_THREADPOOL_SIZE
+
 exec "$root/node/bin/node" --max-old-space-size="$heap_mb" "$root/$entry" "$@"

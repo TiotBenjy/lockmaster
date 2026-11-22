@@ -23,7 +23,7 @@ function fakeInstall() {
   for (const name of ['lockmaster.mjs', 'lockmaster-signer.mjs']) {
     writeFileSync(
       join(root, name),
-      `console.log(JSON.stringify(['${name}', ...process.argv.slice(2), process.execArgv]));\n`,
+      `console.log(JSON.stringify(['${name}', ...process.argv.slice(2), process.execArgv, process.env.UV_THREADPOOL_SIZE ?? null]));\n`,
     );
   }
   copyFileSync(join(REPO_ROOT, 'packaging/bin/lockmaster'), join(root, 'bin/lockmaster'));
@@ -34,8 +34,8 @@ function fakeInstall() {
   return root;
 }
 
-function launch(path: string, args: string[]) {
-  const result = spawnSync(path, args, { encoding: 'utf8', shell: false, env: { PATH: '/usr/bin:/bin' } });
+function launch(path: string, args: string[], env: Record<string, string> = {}) {
+  const result = spawnSync(path, args, { encoding: 'utf8', shell: false, env: { PATH: '/usr/bin:/bin', ...env } });
   return JSON.parse(result.stdout) as [string, ...unknown[]];
 }
 
@@ -60,5 +60,11 @@ describe('packaging/bin/lockmaster', () => {
     const signer = launch(join(root, 'bin/lockmaster'), ['signer', 'serve']);
     expect(JSON.stringify(app)).toContain('--max-old-space-size=');
     expect(JSON.stringify(signer)).toContain('--max-old-space-size=');
+  });
+
+  it("agrandit le pool de fils de libuv pour l'application : scrypt n'y bloque pas les I/O", () => {
+    const root = fakeInstall();
+    expect(launch(join(root, 'bin/lockmaster'), ['serve']).at(-1)).toBe('16');
+    expect(launch(join(root, 'bin/lockmaster'), ['serve'], { UV_THREADPOOL_SIZE: '32' }).at(-1)).toBe('32');
   });
 });
