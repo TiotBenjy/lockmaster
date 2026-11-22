@@ -1,4 +1,6 @@
 {
+  "BlobStore": "describeBlobStoreContract",
+  "BlobWriter": "describeBlobStoreContract",
   "ByteSource": "describeByteSourceContract",
   "PackageFormat": "describePackageFormatContract"
 }
