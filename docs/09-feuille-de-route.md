@@ -4,7 +4,7 @@ Règles :
 - Un jalon = une branche, livrable seul, avec tests. Ne pas commencer M(n+1) avant que
   **tous** les critères de M(n) soient cochés.
 - Chaque jalon se termine par `pnpm check && pnpm test` verts (+ `pnpm test:e2e` à partir de M3),
-  une revue `security-reviewer`, et la mise à jour de cette page (cases cochées).
+  une revue de sécurité, et la mise à jour de cette page (cases cochées).
 - Si un critère est irréaliste, l'écrire ici avec la raison et ouvrir un ADR ; ne jamais
   le cocher sans le faire.
 
@@ -46,7 +46,7 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
 - [x] Tests de garde : grep CI interdisant `child_process.exec(`, `eval(`, `new Function`,
       `dangerouslySetInnerHTML`, `NODE_TLS_REJECT_UNAUTHORIZED` dans `src/`, `x-html`, `hx-on`,
       `style=` et `import 'alpinejs'` dans `src/web/`, ainsi que les caractères typographiques
-      interdits par CONVENTIONS.md §Style d'écriture dans les fichiers du projet (mêmes règles que les hooks)
+      interdits par CONVENTIONS.md §Style d'écriture dans les fichiers du projet
 - [x] Tous les scripts pnpm de `CONVENTIONS.md` §Commandes existent (même vides pour `test:e2e`/`test:fuzz`)
 - [x] `pnpm build` (esbuild -> `dist/lockmaster.mjs`, better-sqlite3 en external copié), `packaging/versions.env`, `packaging/nfpm.yaml` (.deb + .rpm, Node 24
       embarqué et vérifié par SHA-256, unité systemd durcie, utilisateur `lockmaster`, conffile)
@@ -62,7 +62,7 @@ serveur de dépôt (paquet `lockmaster-repo` + service nginx `repo`) installable
 - [x] `deploy/nginx/lockmaster-repo.container.conf` régénéré par `packaging/gen-nginx-container-conf.sh`
       (la CI échoue si le fichier commité diffère) ; `deploy/gen-test-cert.sh` (certificat auto-signé
       pour le service `repo` en test et en dev)
-- [ ] Sécurité du dépôt GitHub : workflows CodeQL (`javascript-typescript`) et `dependency-review` sur
+- [x] Sécurité du dépôt GitHub : workflows CodeQL (`javascript-typescript`) et `dependency-review` sur
       les PR, actions épinglées par SHA, `permissions:` minimales ; réglages à activer et documentés
       dans `docs/guide/` : signalement privé de vulnérabilités, analyse des secrets avec protection à
       l'envoi, Dependabot (`.github/dependabot.yml`), branche principale protégée avec revue des
@@ -78,10 +78,10 @@ Podman rootless et Docker ; `quadlet -dryrun`, `compose config`, régénération
 nginx. Le critère de sortie ci-dessous passe en CI, avec une réserve.
 
 Reste ouvert avant de clore M0 :
-- **Sécurité du dépôt GitHub** (case ci-dessus) : les workflows sont en place et verts ; restent les
-  réglages du dépôt à activer par le porteur (`docs/guide/securite-github.md`) et la première image
-  publiée sur ghcr.io, au premier tag de version (`release.yml`) : `v0.1.0` (`package.json` à 0.1.0
-  depuis le 2026-10-26).
+- **Sécurité du dépôt GitHub** (case ci-dessus) : fermé le 2026-10-29. Le porteur a rendu le dépôt
+  public et activé les réglages de `docs/guide/securite-github.md` ; `release.yml` a publié
+  `ghcr.io/tiotbenjy/lockmaster:0.1.0` depuis le tag `v0.1.0`, image publique (liste des tags lue
+  sans authentification : `0.1.0`, `0`).
 - **Contexte SELinux sur Rocky** (critère de sortie) : la règle `httpd_sys_content_t` est enregistrée
   par le paquet (`semanage fcontext`, vérifié en CI), mais son application aux fichiers ne se vérifie
   pas dans un conteneur, où SELinux est désactivé. À constater sur un hôte Rocky réel, sinon à
@@ -100,6 +100,9 @@ d'ici là.
 développement, le constat du contexte SELinux sur un hôte réel est reporté ; il ne bloque pas M2 et
 sera fait au plus tard avant la version 1.0 (M10). Le critère de sortie reste décoché d'ici là. Seuls
 les réglages du dépôt GitHub et la première image sur ghcr.io restent à fermer avant M2.
+
+État au 2026-10-29 : réglages GitHub et image `0.1.0` faits, toutes les cases de M0 sont cochées et
+M2 commence. Seul le critère de sortie reste décoché, pour le constat SELinux reporté en M10.
 
 Critère de sortie, en CI, pour chacun des trois livrables :
 - `.deb` (Debian 12 et 13) et `.rpm` (Rocky 9 et 10) dans un conteneur avec systemd : installation, puis
@@ -138,11 +141,11 @@ fichiers produits par de vrais outils) : `docs/10` §Fixtures décrit cette orga
 `src/formats` : 100 % des lignes et des branches. Au-delà des critères, `pnpm test:e2e` confronte les
 trois comparateurs de versions à dpkg, rpm et apk, et les trois parseurs à de vrais paquets de
 Debian 12 et 13, Rocky 9 et 10, Alpine 3.20 et 3.22 (`docs/10`) ; cela a révélé trois refus à tort de
-vrais RPM, corrigés ; ces tests tournent en CI (job « Tests e2e »). Revues `security-reviewer` :
+vrais RPM, corrigés ; ces tests tournent en CI (job « Tests e2e »). Revues de sécurité :
 verdict OK pour `formats/common`, deb, rpm, apk et le correctif rpm. ADR-0015 (décompression et tar
 sans dépendance) et ADR-0016 (conteneurs e2e sans testcontainers) acceptés par le porteur le
-2026-10-26 : **M1 est clos**. Les points ouverts de M0 restent à fermer avant M2 (dérogation
-ci-dessus).
+2026-10-26 : **M1 est clos**. Les points ouverts de M0 sont fermés le 2026-10-29, hors constat
+SELinux reporté en M10 (seconde dérogation).
 
 ## M2 : Base, blobs, audit, crypto
 
@@ -356,7 +359,7 @@ SELinux en mode `Enforcing`, et constater `httpd_sys_content_t` sur `/srv/lockma
 (`ls -Zd`) ; puis cocher le critère de sortie de M0.
 
 - [ ] Fuzzing long sur tous les parseurs (30 min chacun) sans échec
-- [ ] Revue `/revue-securite all` sans constat bloquant ; checklist `docs/10-tests.md`
+- [ ] Revue de sécurité de tout le code sans constat bloquant ; checklist `docs/10-tests.md`
 - [ ] Tests de charge : 100 000 paquets dans un dépôt, publication < 60 s, `apt update` < 2 s
 - [ ] Livrables signés (cosign pour l'image, signature des .deb/.rpm), SBOM, notes de version
 - [ ] Publication des paquets Lockmaster dans une instance Lockmaster (dogfooding)

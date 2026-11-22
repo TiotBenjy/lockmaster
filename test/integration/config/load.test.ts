@@ -117,6 +117,34 @@ describe('loadConfig', () => {
     }
   });
 
+  it("refuse ce qui n'est pas un fichier ordinaire (dossier, périphérique), sans le lire", () => {
+    const { root, cleanup } = makeTree({ 'etc/keep': '' });
+    try {
+      for (const path of [`${root}/etc`, '/dev/null']) {
+        let caught: unknown;
+        try {
+          loadConfig({ path, env: {} });
+        } catch (error) {
+          caught = error;
+        }
+        expect(caught, path).toBeInstanceOf(LockmasterError);
+        expect((caught as LockmasterError).code, path).toBe('CONFIG_INVALID');
+        expect((caught as LockmasterError).message, path).toContain("n'est pas un fichier ordinaire");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('refuse un fichier de plus de 1 Mio', () => {
+    const { file, cleanup } = withFile(`${MINIMAL_TOML}\n# ${'x'.repeat(1024 * 1024)}\n`);
+    try {
+      expect(codeOf(() => loadConfig({ path: file, env: {} }))).toBe('CONFIG_INVALID');
+    } finally {
+      cleanup();
+    }
+  });
+
   it('refuse une clé maîtresse située sous data_dir à travers un lien symbolique', () => {
     const { root, cleanup } = makeTree({ 'data/master.key': 'x', 'etc/keep': '' });
     try {

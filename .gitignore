@@ -5,7 +5,8 @@ out/
 coverage/
 *.tsbuildinfo
 
-# Données locales de développement (base, blobs, clés générées)
+# Configuration et données locales de développement (base, blobs, clés générées)
+lockmaster.dev.toml
 .data/
 .data-keys/
 .data-repo/
@@ -20,11 +21,46 @@ secrets/
 deploy/lockmaster.toml
 deploy/tls/
 
+# Configuration locale des outils de développement (jamais publiée) : assistants de code et agents IA
+AGENTS.md
+AGENTS.override.md
+.agents/
+.codex/
+GEMINI.md
+.gemini/
+.cursor/
+.cursorrules
+.cursorignore
+.cursorindexingignore
+.windsurf/
+.windsurfrules
+.codeium/
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+.github/chatmodes/
+.aider*
+.continue/
+.continuerules
+.cline/
+.clinerules
+.clineignore
+.roo/
+.roomodes
+.rooignore
+.kilocode/
+.kiro/
+.junie/
+.augment/
+.augmentignore
+.amazonq/
+.opencode/
+opencode.json
+.goosehints
+.specstory/
+.mcp.json
 
 # Divers
 .DS_Store
 *.log
-
-
-# Python (outil de recherche du skill UI)
 __pycache__/

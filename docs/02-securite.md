@@ -215,8 +215,8 @@ SEC-01 à SEC-30 sont normatives.
 
 ## 6. Revue de sécurité continue
 
-- Agent `security-reviewer` (`.agent/agents/security-reviewer.md`) sur chaque changement sensible.
+- Relecture de sécurité indépendante de chaque changement sensible (zones : CONVENTIONS.md §Méthode).
 - CI : `pnpm audit --prod`, Biome (règles de sécurité), test « toutes les routes ont une
   permission », test « pas de `child_process.exec` / `eval` / `dangerouslySetInnerHTML` »,
   tests de propriétés des parseurs, scan de l'image (Grype sur l'image Lockmaster elle-même), SBOM.
-- Avant chaque version : `/revue-securite all` + checklist `docs/10-tests.md` §Sécurité.
+- Avant chaque version : revue de sécurité de tout le code + checklist `docs/10-tests.md` §Sécurité.

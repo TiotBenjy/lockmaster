@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // `pnpm dev:init` : prépare un environnement de développement JETABLE dans le dossier courant.
-//  - ./lockmaster.dev.toml : configuration de dev (ignorée par git, recopiée dans les worktrees) ;
+//  - ./lockmaster.dev.toml : configuration de dev (ignorée par git) ;
 //  - ./.data/              : données de dev (base, blobs), 0700 ;
 //  - ./.data-keys/         : clé maîtresse de dev, 0600. Hors de .data, car lockmaster refuse une clé
 //                            maîtresse située sous data_dir (docs/02 §3.3).

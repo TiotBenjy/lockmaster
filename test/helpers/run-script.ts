@@ -5,6 +5,9 @@ import { dirname, join, resolve } from 'node:path';
 
 export const REPO_ROOT = resolve(import.meta.dirname, '..', '..');
 
+/** Options de Node pour lancer le code source (tsx) avec les migrations .sql, comme `pnpm dev`. */
+export const TSX_IMPORTS = ['--import', 'tsx', '--import', join(REPO_ROOT, 'scripts/sql-text-hook.mjs')];
+
 export interface ScriptResult {
   status: number | null;
   stdout: string;

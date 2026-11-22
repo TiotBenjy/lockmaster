@@ -30,8 +30,10 @@ selon l'interface de GitHub ; les réglages, eux, sont stables.
 - **Graphe de dépendances** : activé (nécessaire à la revue des dépendances et à Dependabot).
 - **Alertes Dependabot** : activées.
 - **Mises à jour de sécurité Dependabot** : activées.
-- **Mises à jour de versions** : configurées par `.github/dependabot.yml` (npm, actions GitHub), avec
-  un délai de 7 jours aligné sur `minimumReleaseAge` de pnpm.
+- **Mises à jour de versions** : configurées par `.github/dependabot.yml` (npm, actions GitHub, image
+  de base), avec un délai de 7 jours aligné sur `minimumReleaseAge` de pnpm. Les PR visent `dev` ;
+  seules les mises à jour de sécurité visent la branche par défaut. Les actions
+  `github/codeql-action` (init et analyze) sont groupées pour garder la même version.
 - Une PR de Dependabot se fusionne comme les autres : CI verte et revue du propriétaire.
 
 ## 4. Analyse du code

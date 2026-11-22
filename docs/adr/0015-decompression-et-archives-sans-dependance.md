@@ -98,7 +98,7 @@ inconnue lève une `LockmasterError` au code stable, jamais un résultat partiel
   commités sous `test/fixtures/corpus/`, générés par un script), corpus malformé (flux tronqué, CRC
   faux, dictionnaire excessif, filtre inconnu, bloc bzip2 trop grand), propriétés fast-check (aucune
   exception non typée, sortie bornée), aller-retour sur des données aléatoires.
-- Sécurité : le portage passe par le `security-reviewer` comme tout code de `formats/`.
+- Sécurité : le portage passe par la revue de sécurité comme tout code de `formats/`.
 - Documents mis à jour : CONVENTIONS.md (stack et bibliothèques retenues), feuille de route (M1),
   `docs/04` §2 (lzma historique refusé). ADR-0001 reste inchangé (ADR accepté) : sa ligne
   « Archives » est remplacée par le présent ADR.

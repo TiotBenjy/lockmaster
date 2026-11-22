@@ -73,7 +73,8 @@ describe('workflows GitHub (SEC-24)', () => {
   it.each(workflows)('$file : checkout sans jeton persistant, aucun cache', ({ text }) => {
     expect(count(text, /uses: actions\/checkout@/g)).toBe(count(text, /persist-credentials: false/g));
     expect(count(text, /uses: actions\/setup-node@/g)).toBe(count(text, /package-manager-cache: false/g));
-    expect(text).not.toMatch(/^\s*cache:|actions\/cache@/m);
+    expect(text).not.toMatch(/^\s*cache:/m);
+    expect(text).not.toMatch(/actions\/cache@/);
   });
 
   it('écriture dans le registre et jeton OIDC réservés à release.yml, sous environnement protégé', () => {

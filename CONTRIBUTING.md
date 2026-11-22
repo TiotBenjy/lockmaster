@@ -1,7 +1,7 @@
 # Contribuer à Lockmaster
 
-Merci de votre intérêt. Ce guide s'adresse aux contributeurs humains ; les règles détaillées, qui
-valent aussi pour eux, sont dans `CONVENTIONS.md` (stack, invariants de sécurité, conventions).
+Merci de votre intérêt. Les règles détaillées sont dans `CONVENTIONS.md` (stack, invariants de
+sécurité, conventions de code, branches).
 
 ## Avant de commencer
 
@@ -12,8 +12,8 @@ valent aussi pour eux, sont dans `CONVENTIONS.md` (stack, invariants de sécurit
 
 ## Environnement
 
-Node.js 24 LTS, pnpm 12 (version épinglée par `packageManager`), Docker ou Podman (tests e2e), Python 3 (outil de recherche du skill UI, en
-développement seulement). Travaillez dans une VM ou un conteneur jetable, sans vrai secret.
+Node.js 24 LTS, pnpm 12 (version épinglée par `packageManager`), Docker ou Podman (tests e2e).
+Travaillez dans une VM ou un conteneur jetable, sans vrai secret.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -44,14 +44,10 @@ pnpm test:e2e      # vrais clients apt, dnf, apk contre nginx (conteneurs)
 - Messages au format conventionnel, en français : `feat(rpm): signe les paquets en mode resign`,
   `fix(auth): refuse un jeton expiré`, `sec(publish): ...`, `docs: ...`, `test: ...`.
 - Une PR = un sujet. Remplissez le modèle de PR ; la CI doit être verte.
-- Les fichiers sensibles (`.agent/`, `.github/`, `test/security/`, code de sécurité) exigent la
-  relecture des propriétaires (`CODEOWNERS`).
-
-## Développement avec un agent de code
-
-Le dépôt contient la configuration de l'agent de code (`.agent/`) : l'agent travaille dans des worktrees,
-committe localement, ne pousse jamais, et ses garde-fous (hooks) appliquent les mêmes règles que
-la CI. Toute modification de `.agent/` est faite par un humain et relue par l'équipe sécurité.
+- Une tâche = une branche `<type>/<sujet>` partie de `dev` (ex. `feat/m3-publication-apt`), intégrée
+  dans `dev` par `git merge --ff-only` (`CONVENTIONS.md` §Flux git).
+- Les fichiers sensibles (`.github/`, `test/security/`, `CONVENTIONS.md`, code de sécurité) exigent
+  la relecture des propriétaires (`CODEOWNERS`).
 
 ## Licence
 

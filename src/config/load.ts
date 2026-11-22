@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs';
+import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import type { z } from 'zod';
@@ -19,19 +19,42 @@ export function resolveConfigPath(cliPath: string | undefined, env: Env): string
   return cliPath || env['LOCKMASTER_CONFIG'] || DEFAULT_CONFIG_PATH;
 }
 
-/** Lit et analyse un fichier TOML de configuration, borné en taille. */
-export function readTomlFile(path: string): Record<string, unknown> {
-  let text: string;
+/**
+ * Lit le fichier par un seul descripteur : le type est contrôlé sur le fichier ouvert (fstat) et la
+ * lecture s'arrête à MAX_CONFIG_BYTES + 1 octets, même si le fichier change entre-temps.
+ * O_NONBLOCK : l'ouverture d'un tube nommé ne bloque pas avant le refus.
+ */
+function readBoundedRegularFile(path: string): string {
+  let fd: number;
   try {
-    if (statSync(path).size > MAX_CONFIG_BYTES) {
-      throw new LockmasterError('CONFIG_INVALID', `${path} : fichier de configuration trop gros`);
-    }
-    text = readFileSync(path, 'utf8');
+    fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
   } catch (error) {
-    if (error instanceof LockmasterError) throw error;
     const code = (error as NodeJS.ErrnoException).code ?? 'inconnue';
     throw new LockmasterError('CONFIG_NOT_FOUND', `${path} : fichier de configuration illisible (${code})`);
   }
+  try {
+    if (!fstatSync(fd).isFile()) {
+      throw new LockmasterError('CONFIG_INVALID', `${path} : ce n'est pas un fichier ordinaire`);
+    }
+    const buffer = Buffer.alloc(MAX_CONFIG_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const read = readSync(fd, buffer, length, buffer.length - length, null);
+      if (read === 0) break;
+      length += read;
+    }
+    if (length > MAX_CONFIG_BYTES) {
+      throw new LockmasterError('CONFIG_INVALID', `${path} : fichier de configuration trop gros`);
+    }
+    return buffer.toString('utf8', 0, length);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** Lit et analyse un fichier TOML de configuration, borné en taille. */
+export function readTomlFile(path: string): Record<string, unknown> {
+  const text = readBoundedRegularFile(path);
   try {
     return parseToml(text) as Record<string, unknown>;
   } catch (error) {

@@ -1,10 +1,9 @@
 # 12 : Système de design de l'interface
 
 Référence normative pour tout ce qui se voit dans l'UI (`src/web/`). Contraintes techniques :
-ADR-0004 (rendu serveur, CSP stricte) et ADR-0011 (Alpine.js build CSP). Règles d'application :
-`.agent/rules/ui.md`. Référentiel de règles UX/accessibilité : skill `ui-ux-pro-max`
-(`.agent/skills/ui-ux-pro-max/`, `references/quick-reference.md`), interrogé avec
-`--domain ux|color|icons|chart|typography` : jamais `--stack` ni `--persist`.
+ADR-0004 (rendu serveur, CSP stricte) et ADR-0011 (Alpine.js build CSP). Référentiel de règles
+UX/accessibilité : base de règles `ui-ux-pro-max` (MIT, `references/quick-reference.md`), consultée
+pour l'UX, les couleurs, les icônes, les graphiques et la typographie, jamais pour la stack.
 
 Objectif : une **console d'administration professionnelle**, sobre, dense, lisible, prévisible,
 accessible (WCAG 2.2 AA), identique en clair et en sombre. Ce n'est pas un site marketing :

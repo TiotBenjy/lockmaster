@@ -1,11 +1,14 @@
 import { existsSync, lstatSync, mkdirSync, type Stats } from 'node:fs';
 import { dirname } from 'node:path';
+import { systemClock } from '../../app.js';
 import { isInsideReally } from '../../config/real-path.js';
 import type { Config } from '../../config/schema.js';
 import { readSecretFile, type SecretFileOptions } from '../../config/secret-file.js';
 import { generateMasterKeyText, parseMasterKey } from '../../crypto/master-key.js';
 import { databasePath, markInitialized, openDatabase } from '../../db/connection.js';
+import { migrateDatabase } from '../../db/migrations.js';
 import { LockmasterError } from '../../domain/errors.js';
+import type { Clock } from '../../domain/ports.js';
 import { writeNewFile } from '../../system/files.js';
 import { type SystemAccounts, systemAccounts } from '../accounts.js';
 import { type CommandContext, loadContextConfig } from '../context.js';
@@ -27,6 +30,7 @@ const DATABASE_FILES = ['', '-wal', '-shm', '-journal'];
 export interface InitDeps {
   accounts: SystemAccounts;
   privileges: Privileges;
+  clock?: Clock;
 }
 
 /** En root : identités en jeu. Hors root : l'init travaille sous le compte courant. */
@@ -121,7 +125,7 @@ function isLink(path: string): boolean {
   }
 }
 
-function ensureDatabase(config: Config, root: RootMode | undefined): string {
+function ensureDatabase(config: Config, root: RootMode | undefined, clock: Clock): string[] {
   const path = databasePath(config.server.data_dir);
   for (const suffix of DATABASE_FILES) {
     if (isLink(`${path}${suffix}`)) throw unsafe(`${path}${suffix}`, 'lien symbolique inattendu');
@@ -131,13 +135,16 @@ function ensureDatabase(config: Config, root: RootMode | undefined): string {
     const db = openDatabase(path, { create: true });
     try {
       markInitialized(db);
+      return migrateDatabase(db, clock.now().getTime());
     } finally {
       db.close();
     }
   };
-  if (root) root.privileges.asService(root.service, create);
-  else create();
-  return existed ? `base existante conservée : ${path}` : `base créée : ${path}`;
+  const applied = root ? root.privileges.asService(root.service, create) : create();
+  return [
+    existed ? `base existante conservée : ${path}` : `base créée : ${path}`,
+    ...applied.map((name) => `migration appliquée : ${name}`),
+  ];
 }
 
 export async function initCommand(
@@ -157,7 +164,7 @@ export async function initCommand(
       : undefined;
   const lines = [ensureMasterKey(config, root)];
   ensureDataDir(config.server.data_dir, root);
-  lines.push(ensureDatabase(config, root));
+  lines.push(...ensureDatabase(config, root, deps.clock ?? systemClock));
   if (typeof passwordFile === 'string') {
     lines.push('mot de passe administrateur vérifié ; le compte sera créé quand le schéma des comptes existera');
   }

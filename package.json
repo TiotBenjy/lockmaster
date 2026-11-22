@@ -11,7 +11,7 @@
   "packageManager": "pnpm@12.14.0+sha512.c18ba6d87993d3d164cb5e8948f32b2c06ee854487e06cd8d86781342fb3e5bb4634367034711e86802baa9c37bea906ce1929ad08d70884c97d801df13389a6",
   "scripts": {
     "dev:init": "node scripts/dev-init.mjs",
-    "dev": "tsx watch src/main.ts serve --config lockmaster.dev.toml",
+    "dev": "tsx watch --import ./scripts/sql-text-hook.mjs src/main.ts serve --config lockmaster.dev.toml",
     "check": "biome check . && tsc --noEmit && depcruise src test scripts --config .dependency-cruiser.cjs",
     "test": "vitest run --project unit --project integration",
     "test:fuzz": "FC_NUM_RUNS=100000 vitest run --project fuzz",
@@ -37,6 +37,7 @@
     "@fastify/helmet": "13.2.0",
     "better-sqlite3": "13.0.3",
     "fastify": "5.12.7",
+    "kysely": "0.29.7",
     "pino": "10.4.0",
     "smol-toml": "1.9.1",
     "zod": "4.6.7"

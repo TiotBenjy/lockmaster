@@ -138,5 +138,5 @@ en revue.
 - [ ] Grype sur l'image Lockmaster : aucune critique corrigeable
 - [ ] `pnpm test:fuzz` 30 min sans échec
 - [ ] e2e verts sur toutes les distributions cibles
-- [ ] `/revue-securite all` sans constat bloquant
+- [ ] Revue de sécurité de tout le code sans constat bloquant
 - [ ] SBOM et signatures (cosign, paquets) produits et vérifiés

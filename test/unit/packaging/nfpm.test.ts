@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Règles des paquets .deb/.rpm (ADR-0007, ADR-0008, .agent/rules/packaging.md), vérifiées sur les
+// Règles des paquets .deb/.rpm (ADR-0007, ADR-0008, ADR-0013), vérifiées sur les
 // fichiers nfpm et les scripts de maintenance. L'installation réelle est testée par test/deliverables/.
 
 const ROOT = join(import.meta.dirname, '../../..');

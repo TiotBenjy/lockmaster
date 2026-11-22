@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cli, freePort, installation } from '../../helpers/cli.js';
-import { REPO_ROOT } from '../../helpers/run-script.js';
+import { REPO_ROOT, TSX_IMPORTS } from '../../helpers/run-script.js';
 
 // Le vrai processus `lockmaster` (src/main.ts chargé par tsx) : codes de sortie et signaux.
 
@@ -13,7 +13,7 @@ afterEach(() => {
 });
 
 function lockmaster(args: string[]): ChildProcess & { output: () => string } {
-  const child = spawn(process.execPath, ['--import', 'tsx', join(REPO_ROOT, 'src/main.ts'), ...args], {
+  const child = spawn(process.execPath, [...TSX_IMPORTS, join(REPO_ROOT, 'src/main.ts'), ...args], {
     cwd: REPO_ROOT,
     // Environnement minimal ; tsx a besoin d'un dossier temporaire pour son cache.
     env: { PATH: process.env['PATH'] ?? '/usr/bin', TMPDIR: tmpdir() },

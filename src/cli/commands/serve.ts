@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import { createDeps } from '../../app.js';
+import { createDeps, systemClock } from '../../app.js';
 import type { Config } from '../../config/schema.js';
 import { readSecretFile } from '../../config/secret-file.js';
 import { parseMasterKey } from '../../crypto/master-key.js';
 import { type Db, databasePath, isInitialized, openDatabase, ping } from '../../db/connection.js';
+import { migrateDatabase } from '../../db/migrations.js';
 import { LockmasterError } from '../../domain/errors.js';
 import { buildServer } from '../../http/server.js';
 import type { Logger } from '../../log.js';
@@ -32,9 +33,13 @@ export function preflight(config: Config): Db {
   const path = databasePath(config.server.data_dir);
   if (!existsSync(path)) throw notInitialized(`base absente (${path})`);
   const db = openDatabase(path, { create: false });
-  if (!isInitialized(db)) {
+  try {
+    if (!isInitialized(db)) throw notInitialized(`base non initialisée (${path})`);
+    // Seul écrivain de la base : les migrations en attente s'appliquent au démarrage.
+    migrateDatabase(db, systemClock.now().getTime());
+  } catch (error) {
     db.close();
-    throw notInitialized(`base non initialisée (${path})`);
+    throw error;
   }
   return db;
 }

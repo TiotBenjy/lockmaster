@@ -10,7 +10,7 @@ ADR-0007 place le bundle des paquets dans `/usr/lib/lockmaster/app/` et fait de 
 un script qui lance `/usr/lib/lockmaster/node/bin/node /usr/lib/lockmaster/app/lockmaster.mjs`, alors
 que l'image le place directement sous `/app` (`/app/lockmaster.mjs`). ADR-0009 ajoute un second bundle,
 celui du signataire, lancé par `lockmaster signer ...`. Les trois livrables doivent rester
-fonctionnellement identiques (`.agent/rules/packaging.md`).
+fonctionnellement identiques.
 
 ## Décision
 
