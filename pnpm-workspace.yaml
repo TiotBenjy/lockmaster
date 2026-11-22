@@ -13,12 +13,11 @@ allowBuilds:
 minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 
-# Exception au délai de 7 jours, réservée aux correctifs de sécurité : versions EXACTES, avec la
-# référence de l'avis et la date à laquelle l'exception devient inutile (à retirer ensuite).
-#  - fast-uri 3.1.9 et 4.2.3 (publiées le 2026-10-19) : GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp
-#    et avis associés (alertes Dependabot 1 à 8) ; inutile à partir du 2026-10-26.
-minimumReleaseAgeExclude:
-  - fast-uri@3.1.9 || 4.2.3
+# Exception au délai de 7 jours (CONVENTIONS.md §Contenu externe) : avis de CVSS au moins 8,5 ou présent
+# dans KEV, décidée par le porteur, proposée par `node scripts/security-exception.mjs`. Chaque entrée de
+# `minimumReleaseAgeExclude` (version EXACTE) a ici sa ligne de justification :
+#  - <paquet>@<version> : <GHSA, ...> ; CVSS <score> | KEV ; retrait le <AAAA-MM-JJ>
+# et se retire à cette date (test/unit/packaging/release-age-exceptions.test.ts). Aucune en cours.
 
 # Versions corrigées imposées aux dépendances transitives (fastify -> ajv, @fastify/ajv-compiler,
 # fast-json-stringify) tant que leurs versions ne les exigent pas d'elles-mêmes.

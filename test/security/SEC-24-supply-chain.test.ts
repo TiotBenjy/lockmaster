@@ -152,11 +152,12 @@ describe('SEC-24 : pnpm', () => {
   it('pnpm-workspace.yaml ne contient que les réglages autorisés, délai strict', () => {
     // Liste fermée : un réglage nouveau (cache distant, outils Rust, approbations...) exige de
     // modifier ce test, donc une revue explicite.
+    // minimumReleaseAgeExclude n'est présent que pendant une exception de sécurité en cours (CONVENTIONS.md
+    // §Contenu externe) ; sa forme est contrôlée par le test suivant.
     const keys = [...workspace.matchAll(/^([A-Za-z][\w-]*):/gm)].map(([, key]) => key);
-    expect(keys.sort()).toEqual([
+    expect(keys.filter((key) => key !== 'minimumReleaseAgeExclude').sort()).toEqual([
       'allowBuilds',
       'minimumReleaseAge',
-      'minimumReleaseAgeExclude',
       'minimumReleaseAgeStrict',
       'overrides',
     ]);
