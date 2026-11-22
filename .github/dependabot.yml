@@ -22,7 +22,7 @@ updates:
       # passeraient sans rien analyser. À lever quand dependency-cruiser le prendra en charge.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
-    labels: ["dépendances"]
+    labels: ["dependencies"]
     commit-message:
       prefix: "build(deps)"
     groups:
@@ -42,7 +42,7 @@ updates:
       timezone: "Europe/Paris"
     cooldown:
       default-days: 7
-    labels: ["dépendances", "ci"]
+    labels: ["dependencies", "ci"]
     commit-message:
       prefix: "ci(deps)"
     groups:
@@ -60,6 +60,6 @@ updates:
       timezone: "Europe/Paris"
     cooldown:
       default-days: 7
-    labels: ["dépendances", "livraison"]
+    labels: ["dependencies", "delivery"]
     commit-message:
       prefix: "build(image)"

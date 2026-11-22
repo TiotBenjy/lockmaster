@@ -23,4 +23,12 @@ describe('configuration de Dependabot', () => {
       /^ {4}groups:\n(?: {6}#.*\n)* {6}codeql-action:\n {8}patterns:\n {10}- "github\/codeql-action\*"$/m,
     );
   });
+
+  it("n'utilise que les étiquettes créées sur le dépôt GitHub (dependencies, ci, delivery)", () => {
+    const labels = [...text.matchAll(/^ {4}labels: \[(.*)\]$/gm)].flatMap(([, list]) =>
+      (list ?? '').split(',').map((label) => label.trim().replaceAll('"', '')),
+    );
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) expect(['dependencies', 'ci', 'delivery']).toContain(label);
+  });
 });
