@@ -68,7 +68,8 @@ Les noms/versions/arch suivent des regex strictes par format avant tout usage.
 | Usage | Choix |
 |---|---|
 | Hash de mot de passe | scrypt N=2^17, r=8, p=1 (~128 MiB : passer `maxmem: 256 * 1024 * 1024` à `crypto.scrypt`, la valeur par défaut de 32 MiB lève une erreur), sel 16 o, 64 o de sortie, format `scrypt$N$r$p$sel$hash`, appel asynchrone ; limite de 4 calculs simultanés (file) contre l'épuisement mémoire ; re-hachage transparent si les paramètres changent |
-| Jetons (session, API, reset, identifiants de dépôt) | 32 o `crypto.randomBytes`, base64url ; stockés en SHA-256 ; comparaison `timingSafeEqual` |
+| Jetons (session, API, reset) | 32 o `crypto.randomBytes`, base64url ; stockés en SHA-256 ; comparaison `timingSafeEqual` |
+| Identifiants clients de dépôt | secret de 32 o `crypto.randomBytes`, stocké au format crypt `$6$` lu par nginx (htpasswd, invariant 6), jamais en clair |
 | Chiffrement au repos | AES-256-GCM, nonce 12 o aléatoire, AAD contextuelle, clé maîtresse 32 o |
 | Signature APT/RPM | OpenPGP RSA 4096 (défaut), Ed25519 en option pour APT seul |
 | Signature APK | RSA 4096, PKCS#1 v1.5 SHA-256 |
