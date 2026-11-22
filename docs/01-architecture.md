@@ -208,7 +208,7 @@ Ces principes sont **vérifiés**, pas seulement souhaités : par les suites de 
 | `VulnScanner` (SBOM -> constats) | `scan/grype.ts` | `fakes/vuln-scanner.ts` | `vuln-scanner.contract.ts` |
 | `DirectoryConnector` (authentifier, résoudre les groupes, synchroniser) | `auth/oidc.ts`, `auth/ldap.ts` | `fakes/directory.ts` | `directory-connector.contract.ts` |
 | `Signer` (demander une signature) | `signer-client/` | `fakes/signer.ts` | `signer.contract.ts` |
-| `KeyStore` (côté signataire : stocker, déchiffrer, retirer) | `signer/keystore-file.ts` (PKCS#11 plus tard) | `fakes/keystore.ts` | `keystore.contract.ts` |
+| `KeyStore` (côté signataire : stocker, déchiffrer, changer d'état) | `signer/keystore-sqlite.ts` (clés scellées dans `signer.db` ; PKCS#11 plus tard) | `fakes/keystore.ts` | `keystore.contract.ts` |
 | `BlobStore` lecture / `BlobWriter` écriture | `storage/` | `fakes/blobs.ts` | `blob-store.contract.ts` |
 | `Clock`, `RandomSource` | `node:*` | horloge et aléa déterministes | - |
 

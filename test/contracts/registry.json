@@ -2,5 +2,6 @@
   "BlobStore": "describeBlobStoreContract",
   "BlobWriter": "describeBlobStoreContract",
   "ByteSource": "describeByteSourceContract",
+  "KeyStore": "describeKeyStoreContract",
   "PackageFormat": "describePackageFormatContract"
 }
