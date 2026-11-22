@@ -174,8 +174,8 @@ importers:
         specifier: 13.2.0
         version: 13.2.0
       better-sqlite3:
-        specifier: 13.0.3
-        version: 13.0.3
+        specifier: 13.2.0
+        version: 13.2.0
       fastify:
         specifier: 5.12.7
         version: 5.12.7
@@ -708,8 +708,8 @@ packages:
   avvio@9.3.1:
     resolution: {integrity: sha512-QyTKW61/qlba+cUQBm/sT9X8lri4UdomqSDwCnrnj1IvLVDRRiXRkz4CgBRWB+/cmfC7SK5WQc8T1vSdGvaUcQ==}
 
-  better-sqlite3@13.0.3:
-    resolution: {integrity: sha512-RbOBxmLBG8uvFUc15X9+9SFemKcQ0WBuISBVkpuiaUB2qblC8UWlHEjdWVoZ8AdhSwmoEgsiXKfopX0CQxaACQ==}
+  better-sqlite3@13.2.0:
+    resolution: {integrity: sha512-Z8Q/9x/uNyKxA1v4FNodyItRVRw1TeKBrmj32JhxhR0ceNcBY+wMobt/Bv7M7TzwPAXjnZRtNaEsATnUZSKWZQ==}
     engines: {node: '>=22'}
 
   chai@6.3.0:
@@ -1643,7 +1643,7 @@ snapshots:
       '@fastify/error': 4.2.1
       fastq: 1.20.3
 
-  better-sqlite3@13.0.3:
+  better-sqlite3@13.2.0:
     dependencies:
       node-addon-api: 8.9.2
 
