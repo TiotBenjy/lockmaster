@@ -3,7 +3,9 @@
 //  - dist/lockmaster.mjs         : application (src/main.ts) ;
 //  - dist/lockmaster-signer.mjs  : service de signature (src/signer/main.ts), bundle DISTINCT : aucun
 //                                  code du signataire dans l'application, et inversement (ADR-0009) ;
-//  - dist/node_modules/better-sqlite3 : seul module externe (natif), avec le binaire fourni par
+//  - dist/node_modules/openpgp  : module externe copié tel quel (paquet entier, non modifié, avec sa
+//                                  licence) : exception LGPL de CONVENTIONS.md §Licence, remplaçable ;
+//  - dist/node_modules/better-sqlite3 : module externe natif, avec le binaire fourni par
 //                                  --native (compilé depuis les sources, packaging/build-native.sh),
 //                                  obligatoire avec --out ; sinon celui de node_modules (dist/ local,
 //                                  ou --dev pour les tests) ;
@@ -34,7 +36,7 @@ async function bundle(entry, file) {
     platform: 'node',
     target: 'node24',
     format: 'esm',
-    external: ['better-sqlite3'],
+    external: ['better-sqlite3', 'openpgp'],
     // Migrations SQL embarquées comme texte (src/db/migrations/*.sql), comme sous vitest et pnpm dev.
     loader: { '.sql': 'text' },
     banner: { js: banner },
@@ -65,6 +67,11 @@ function copySqlite(native) {
   cpSync(native, join(target, 'build/Release/better_sqlite3.node'));
 }
 
+/** openpgp : paquet entier recopié sans modification (lien pnpm suivi), à côté des bundles. */
+function copyOpenpgp() {
+  cpSync(join(root, 'node_modules/openpgp'), join(out, 'node_modules/openpgp'), { recursive: true, dereference: true });
+}
+
 function thirdPartyLicenses() {
   const report = JSON.parse(
     execFileSync('pnpm', ['licenses', 'list', '--prod', '--json'], { cwd: root, encoding: 'utf8', shell: false }),
@@ -90,6 +97,7 @@ mkdirSync(out, { recursive: true });
 await bundle('src/main.ts', 'lockmaster.mjs');
 await bundle('src/signer/main.ts', 'lockmaster-signer.mjs');
 copySqlite(native);
+copyOpenpgp();
 if (existsSync(join(root, 'src/web/static')))
   cpSync(join(root, 'src/web/static'), join(out, 'static'), { recursive: true });
 cpSync(join(root, 'LICENSE'), join(out, 'LICENSE'));

@@ -8,7 +8,8 @@ import { parseArgs } from 'node:util';
 
 const ALLOWED = new Set(['MIT', 'ISC', 'BSD-2-Clause', 'BSD-3-Clause', '0BSD', 'Apache-2.0']);
 // Exception unique : openpgp, module séparé non modifié et remplaçable (CONVENTIONS.md §Licence).
-const EXCEPTIONS = new Map([['openpgp', new Set(['LGPL-3.0-or-later'])]]);
+// « LGPL-3.0+ » est l'ancien identifiant SPDX de la même licence (déprécié), déclaré par openpgp 6.
+const EXCEPTIONS = new Map([['openpgp', new Set(['LGPL-3.0-or-later', 'LGPL-3.0+'])]]);
 
 const { values } = parseArgs({ options: { input: { type: 'string' } } });
 const raw = values.input

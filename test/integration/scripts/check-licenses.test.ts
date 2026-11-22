@@ -38,6 +38,13 @@ describe('scripts/check-licenses.mjs (CONVENTIONS.md §Licence)', () => {
     expect(result.stderr).toContain('autre');
   });
 
+  it("accepte aussi l'identifiant SPDX déprécié LGPL-3.0+ (déclaré par openpgp 6), pour openpgp seul", () => {
+    expect(check({ 'LGPL-3.0+': [pkg('openpgp')] }).status).toBe(0);
+    const result = check({ 'LGPL-3.0+': [pkg('autre')] });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('autre');
+  });
+
   it.each(['GPL-3.0', 'AGPL-3.0-only', 'SSPL-1.0', 'MPL-2.0', 'Unknown', '(MIT AND GPL-2.0)'])(
     'refuse la licence %s',
     (license) => {

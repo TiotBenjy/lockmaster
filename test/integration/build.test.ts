@@ -7,7 +7,8 @@ import packageJson from '../../package.json' with { type: 'json' };
 import { REPO_ROOT, runScript } from '../helpers/run-script.js';
 
 // `pnpm build` (scripts/build.mjs) : deux bundles distincts (application, signataire, ADR-0009),
-// better-sqlite3 externe copié avec son module natif, licences tierces jointes.
+// better-sqlite3 externe copié avec son module natif, openpgp externe copié tel quel (exception LGPL),
+// licences tierces jointes.
 
 let out: string;
 beforeAll(() => {
@@ -66,9 +67,28 @@ describe('scripts/build.mjs', () => {
     expect(probe.stdout.trim()).toBe('1');
   });
 
+  it('livre openpgp comme module séparé, copié sans modification avec sa licence (exception LGPL)', () => {
+    const source = join(REPO_ROOT, 'node_modules/openpgp');
+    const target = join(out, 'node_modules/openpgp');
+    for (const file of ['package.json', 'LICENSE', 'dist/node/openpgp.mjs', 'dist/node/openpgp.min.cjs']) {
+      expect(readFileSync(join(target, file)).equals(readFileSync(join(source, file))), file).toBe(true);
+    }
+    const probe = spawnSync(
+      process.execPath,
+      ['--input-type=module', '-e', "import * as o from 'openpgp'; console.log(typeof o.generateKey)"],
+      { cwd: out, encoding: 'utf8', shell: false },
+    );
+    expect(probe.stdout.trim()).toBe('function');
+    // Aucun bundle n'embarque le code de la bibliothèque : un import resterait un import.
+    for (const bundle of ['lockmaster.mjs', 'lockmaster-signer.mjs']) {
+      expect(readFileSync(join(out, bundle), 'utf8'), bundle).not.toContain('OpenPGP.js');
+    }
+  });
+
   it('joint les licences des dépendances de production', () => {
     const licenses = readFileSync(join(out, 'THIRD-PARTY-LICENSES.txt'), 'utf8');
-    for (const name of ['fastify', 'better-sqlite3', 'zod', 'pino', 'smol-toml']) expect(licenses).toContain(name);
+    for (const name of ['fastify', 'better-sqlite3', 'zod', 'pino', 'smol-toml', 'openpgp'])
+      expect(licenses).toContain(name);
     expect(readFileSync(join(out, 'LICENSE'), 'utf8')).toContain('MIT');
   });
 });
