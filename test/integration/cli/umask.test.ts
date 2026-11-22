@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { type SpawnSyncReturns, spawnSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -17,21 +17,19 @@ describe('masque de création de fichiers de lockmaster', () => {
   it('aucun fichier créé par init n est accessible à « others », même avec un masque hérité de 000', async () => {
     const install = installation(await freePort());
     cleanups.push(install.cleanup);
-    const result = spawnSync(
-      'sh',
-      [
-        '-c',
-        'umask 000; exec "$0" "$@"',
+    // Le masque 000 est posé dans ce processus le temps de l'appel synchrone : l'enfant en hérite,
+    // sans passer par un shell.
+    const previous = process.umask(0o000);
+    let result: SpawnSyncReturns<string>;
+    try {
+      result = spawnSync(
         process.execPath,
-        ...TSX_IMPORTS,
-        'src/main.ts',
-        'init',
-        '--non-interactive',
-        '--config',
-        install.config,
-      ],
-      { cwd: REPO_ROOT, encoding: 'utf8', shell: false, timeout: 60_000 },
-    );
+        [...TSX_IMPORTS, 'src/main.ts', 'init', '--non-interactive', '--config', install.config],
+        { cwd: REPO_ROOT, encoding: 'utf8', shell: false, timeout: 60_000 },
+      );
+    } finally {
+      process.umask(previous);
+    }
     expect(result.status, result.stderr).toBe(0);
     const database = join(install.dataDir, 'lockmaster.db');
     expect(statSync(database).mode & 0o027).toBe(0);
