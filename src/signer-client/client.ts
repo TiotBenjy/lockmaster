@@ -2,6 +2,8 @@ import { createConnection } from 'node:net';
 import { z } from 'zod';
 import { LockmasterError } from '../domain/errors.js';
 import {
+  aptReleaseSignatureSchema,
+  checkpointSignatureSchema,
   encodeFrame,
   FrameReader,
   type GenerateKeyRequest,
@@ -11,6 +13,7 @@ import {
   parseResponse,
   publicKeySchema,
   type SignerResponse,
+  type SignRequest,
   statusSchema,
 } from '../domain/signer-protocol.js';
 
@@ -31,8 +34,15 @@ export type GenerateKeyInput = GenerateKeyRequest extends infer R ? (R extends u
 export type GeneratedSigningKey = z.infer<typeof generatedKeySchema>;
 export type SignerStatus = z.infer<typeof statusSchema>;
 export type SignerLogPage = z.infer<typeof logSchema>;
+export type AptReleaseSignature = z.infer<typeof aptReleaseSignatureSchema>;
+export type CheckpointSignature = z.infer<typeof checkpointSignatureSchema>;
+type AptReleaseContext = Extract<SignRequest, { kind: 'apt-release' }>['context'];
+type Checkpoint = Extract<SignRequest, { kind: 'audit-checkpoint' }>['checkpoint'];
 
 export interface SignerClient {
+  /** Signe un Release (InRelease et Release.gpg) ; le signataire en contrôle le contenu (ADR-0009). */
+  signAptRelease(keyId: string, content: string, context: AptReleaseContext): Promise<AptReleaseSignature>;
+  signAuditCheckpoint(keyId: string, checkpoint: Checkpoint): Promise<CheckpointSignature>;
   ping(): Promise<boolean>;
   status(): Promise<SignerStatus>;
   listKeys(): Promise<PublicSigningKey[]>;
@@ -115,5 +125,9 @@ export function createSignerClient(options: SignerClientOptions): SignerClient {
     rotateKey: (keyId) => call(options, { op: 'rotate-key', keyId }, generatedKeySchema),
     retireKey: async (keyId) => (await call(options, { op: 'retire-key', keyId }, retiredSchema)).key,
     log: (range) => call(options, { op: 'log', ...range }, logSchema),
+    signAptRelease: (keyId, content, context) =>
+      call(options, { op: 'sign', keyId, kind: 'apt-release', content, context }, aptReleaseSignatureSchema),
+    signAuditCheckpoint: (keyId, checkpoint) =>
+      call(options, { op: 'sign', keyId, kind: 'audit-checkpoint', checkpoint }, checkpointSignatureSchema),
   };
 }

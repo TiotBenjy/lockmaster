@@ -167,7 +167,8 @@ describe('socket du signataire', () => {
   });
 
   it.each([
-    ['opération inconnue', encodeFrame({ op: 'sign', key: 'x' }), 'SIGNER_UNKNOWN_OPERATION'],
+    ['opération inconnue', encodeFrame({ op: 'export-key', key: 'x' }), 'SIGNER_UNKNOWN_OPERATION'],
+    ['signature mal formée', encodeFrame({ op: 'sign', key: 'x' }), 'SIGNER_REQUEST_INVALID'],
     ['requête mal formée', encodeFrame({ op: 'ping', extra: true }), 'SIGNER_REQUEST_INVALID'],
     ['JSON invalide', Buffer.concat([Buffer.from([0, 0, 0, 3]), Buffer.from('{x}')]), 'SIGNER_FRAME_INVALID'],
     ['trame de plus de 16 Mio', Buffer.from([0xff, 0xff, 0xff, 0xff]), 'SIGNER_FRAME_TOO_LARGE'],

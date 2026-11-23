@@ -84,16 +84,47 @@ describe('requêtes et réponses', () => {
     { op: 'rotate-key', keyId: '01JKEY' },
     { op: 'retire-key', keyId: '01JKEY' },
     { op: 'log', afterSeq: 0, limit: 100 },
+    {
+      op: 'sign',
+      keyId: '01JKEY',
+      kind: 'apt-release',
+      content: 'Origin: x\n',
+      context: { repo: 'debian-12', channel: 'stable', generation: 42 },
+    },
+    { op: 'sign', keyId: '01JKEY', kind: 'audit-checkpoint', checkpoint: { seq: 7, hash: 'a'.repeat(64), at: 1 } },
   ];
 
   it.each(valid)('accepte $op tel quel', (request) => {
     expect(parseRequest(request)).toEqual(request);
   });
 
-  it('refuse sign (pas encore pris en charge) et toute opération inconnue', () => {
-    expect(codeOf(() => parseRequest({ op: 'sign', key: 'x' }))).toBe('SIGNER_UNKNOWN_OPERATION');
+  it('refuse toute opération inconnue', () => {
     expect(codeOf(() => parseRequest({ op: 'export-key' }))).toBe('SIGNER_UNKNOWN_OPERATION');
     expect(codeOf(() => parseRequest('ping'))).toBe('SIGNER_REQUEST_INVALID');
+  });
+
+  it.each([
+    ['type de signature inconnu', { op: 'sign', keyId: 'k', kind: 'raw', content: 'x' }],
+    [
+      'contenu vide',
+      { op: 'sign', keyId: 'k', kind: 'apt-release', content: '', context: { repo: 'r', channel: 'c', generation: 1 } },
+    ],
+    ['contexte incomplet', { op: 'sign', keyId: 'k', kind: 'apt-release', content: 'x', context: { repo: 'r' } }],
+    [
+      'point de contrôle avec champ en trop',
+      {
+        op: 'sign',
+        keyId: 'k',
+        kind: 'audit-checkpoint',
+        checkpoint: { seq: 1, hash: 'a'.repeat(64), at: 0, extra: 1 },
+      },
+    ],
+    [
+      'hachage de point de contrôle mal formé',
+      { op: 'sign', keyId: 'k', kind: 'audit-checkpoint', checkpoint: { seq: 1, hash: 'abc', at: 0 } },
+    ],
+  ])('refuse une demande de signature mal formée : %s', (_label, request) => {
+    expect(codeOf(() => parseRequest(request))).toBe('SIGNER_REQUEST_INVALID');
   });
 
   it.each([

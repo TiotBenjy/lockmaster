@@ -17,6 +17,8 @@ import { SignatureJournal } from './journal.js';
 import { SqliteKeyStore } from './keystore-sqlite.js';
 import { migrateSignerDatabase } from './migrations.js';
 import { type KeyGenerators, productionGenerators, SignerOperations } from './operations.js';
+import { RateLimiter } from './rate-limit.js';
+import { SignerSigning } from './signing.js';
 import { expectedSocketGroup, listenOnFd, listenOnPath } from './socket.js';
 import { isSignerDatabase, openSignerDatabase, type SignerDb, signerDatabasePath } from './store.js';
 
@@ -177,7 +179,14 @@ export async function startSigner(config: SignerConfig, options: SignerStartOpti
     atomic: (fn) => runTransaction(db, fn),
     generators: options.generators ?? productionGenerators,
   });
-  const dispatcher = createDispatcher({ operations, keys, journal, clock, logger });
+  const signing = new SignerSigning({
+    keys,
+    journal,
+    clock,
+    rate: new RateLimiter(db, config.limits.signatures_per_minute_per_key),
+    limits: { maxClockSkewMs: config.limits.max_clock_skew, maxValidUntilDays: config.limits.max_valid_until_days },
+  });
+  const dispatcher = createDispatcher({ operations, signing, keys, journal, clock, logger });
   const connections = new Set<Socket>();
   const server = createServer((socket) => {
     connections.add(socket);

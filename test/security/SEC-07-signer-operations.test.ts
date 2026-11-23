@@ -6,6 +6,7 @@ import { apkKeyFingerprint } from '../../src/crypto/apk-rsa.js';
 import { parseMasterKey } from '../../src/crypto/master-key.js';
 import { generateOpenPgpKey } from '../../src/crypto/openpgp.js';
 import { encodeFrame } from '../../src/domain/signer-protocol.js';
+import { formatReleaseDate } from '../../src/formats/deb/release.js';
 import { loadSignerConfig } from '../../src/signer/config.js';
 import { SignatureJournal } from '../../src/signer/journal.js';
 import { SqliteKeyStore } from '../../src/signer/keystore-sqlite.js';
@@ -42,8 +43,8 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-async function signer() {
-  const install = signerInstallation();
+async function signer(options: { extra?: string } = {}) {
+  const install = signerInstallation(options.extra ?? '');
   cleanups.push(install.cleanup);
   expect((await signerCli(['init', '--config', install.config])).code).toBe(0);
   const running = await startSigner(loadSignerConfig({ path: install.config, env: {} }), {
@@ -163,5 +164,60 @@ describe('SEC-07 : opérations concurrentes sur une même lignée', () => {
           .sort(),
       ),
     ).toEqual(['rotating_in', 'rotating_out']);
+  });
+});
+
+describe('SEC-07 : demande de signature non conforme refusée et journalisée', () => {
+  const DAY = 86_400_000;
+  const release = (fields: { origin?: string; validDays?: number; shiftMs?: number } = {}) => {
+    const now = Date.now() + (fields.shiftMs ?? 0);
+    return [
+      `Origin: ${fields.origin ?? 'lockmaster-debian-12'}`,
+      'Label: lockmaster-debian-12 stable',
+      'Suite: stable',
+      `Date: ${formatReleaseDate(new Date(now))}`,
+      `Valid-Until: ${formatReleaseDate(new Date(now + (fields.validDays ?? 7) * DAY))}`,
+      'SHA256:',
+      ` ${'a'.repeat(64)} 1 main/binary-amd64/Packages`,
+      '',
+    ].join('\n');
+  };
+  const context = { repo: 'debian-12', channel: 'stable', generation: 1 };
+
+  it.each([
+    ['mauvais Origin', release({ origin: 'debian' }), 'SIGNER_CHECK_IDENTITY'],
+    ['contenu arbitraire', 'Signe ce texte, il est sans danger.\n', 'SIGNER_CHECK_FORMAT'],
+    ['Valid-Until excessif', release({ validDays: 365 }), 'SIGNER_CHECK_VALIDITY'],
+    ['Date hors de la fenêtre', release({ shiftMs: 3_600_000 }), 'SIGNER_CHECK_DATE'],
+  ])('%s', async (_label, content, code) => {
+    const { send, inspect } = await signer();
+    const keyId = (await send({ op: 'generate-key', purpose: 'repo', kind: 'openpgp', identity: debIdentity })).response
+      .result.key.id as string;
+    expect((await send({ op: 'sign', keyId, kind: 'apt-release', content: release(), context })).response.ok).toBe(
+      true,
+    );
+    const refused = await send({ op: 'sign', keyId, kind: 'apt-release', content, context });
+    expect(refused.response).toMatchObject({ ok: false, error: { code } });
+    expect(refused.raw).not.toContain('PGP SIGNATURE');
+    const entries = inspect((_keys, journal) => journal.list({ afterSeq: 0, limit: 10 }));
+    expect(entries.at(-1)).toMatchObject({ kind: 'apt-release', keyId, outcome: 'refused', reason: code });
+    expect(entries.filter((entry) => entry.outcome === 'signed')).toHaveLength(1);
+  });
+
+  it('au-delà de la limite de débit : refus journalisé avec la clé, sans signature', async () => {
+    const { send, inspect } = await signer({ extra: '\n[limits]\nsignatures_per_minute_per_key = 1\n' });
+    const keyId = (await send({ op: 'generate-key', purpose: 'audit' })).response.result.key.id as string;
+    const checkpoint = { seq: 1, hash: 'a'.repeat(64), at: 0 };
+    expect((await send({ op: 'sign', keyId, kind: 'audit-checkpoint', checkpoint })).response.ok).toBe(true);
+    const refused = await send({ op: 'sign', keyId, kind: 'audit-checkpoint', checkpoint });
+    expect(refused.response).toMatchObject({ ok: false, error: { code: 'SIGNER_RATE_LIMITED' } });
+    expect(refused.raw).not.toContain('PGP SIGNATURE');
+    const entries = inspect((_keys, journal) => journal.list({ afterSeq: 0, limit: 10 }));
+    expect(entries.at(-1)).toMatchObject({
+      kind: 'audit-checkpoint',
+      keyId,
+      outcome: 'refused',
+      reason: 'SIGNER_RATE_LIMITED',
+    });
   });
 });

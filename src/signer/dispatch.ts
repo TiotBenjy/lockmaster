@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import type { Clock } from '../domain/ports.js';
 import { parseRequest } from '../domain/signer-protocol.js';
 import type { Logger } from '../log.js';
-import type { JournalKind, SignatureJournal } from './journal.js';
+import { type JournalKind, SIGNATURE_KINDS, type SignatureJournal } from './journal.js';
 import type { KeyStore } from './keystore.js';
 import type { SignerOperations } from './operations.js';
+import type { SignerSigning } from './signing.js';
 
 // Routage des requêtes du socket vers les opérations, et journalisation de chaque refus d'une demande
 // reçue en entier (ADR-0009) : type de la demande quand il est reconnu, `unknown` sinon ; clé citée
@@ -19,6 +20,7 @@ export interface Dispatcher {
 
 export interface DispatcherDeps {
   operations: SignerOperations;
+  signing: SignerSigning;
   keys: KeyStore;
   journal: SignatureJournal;
   clock: Clock;
@@ -34,6 +36,14 @@ const KEY_ID = /^[0-9A-Za-z_-]{1,64}$/;
 
 const field = (message: unknown, name: string): unknown =>
   typeof message === 'object' && message !== null ? (message as Record<string, unknown>)[name] : undefined;
+
+/** Type journalisé d'une demande refusée : celui de la signature demandée, ou de l'opération sur les clés. */
+function refusalKind(message: unknown): JournalKind {
+  const op = field(message, 'op');
+  const kind = field(message, 'kind');
+  if (op === 'sign') return SIGNATURE_KINDS.find((known) => known === kind) ?? 'unknown';
+  return (typeof op === 'string' && Object.hasOwn(REFUSAL_KINDS, op) ? REFUSAL_KINDS[op] : undefined) ?? 'unknown';
+}
 
 export function createDispatcher(deps: DispatcherDeps): Dispatcher {
   const { operations } = deps;
@@ -55,6 +65,8 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
           return operations.retireKey(request.keyId);
         case 'log':
           return operations.log(request);
+        case 'sign':
+          return deps.signing.sign(request, signal);
       }
     },
 
@@ -66,8 +78,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         deps.journal.append({
           at: deps.clock.now().getTime(),
           keyId: known ? keyId : null,
-          kind:
-            (typeof op === 'string' && Object.hasOwn(REFUSAL_KINDS, op) ? REFUSAL_KINDS[op] : undefined) ?? 'unknown',
+          kind: refusalKind(message),
           contentSha256: createHash('sha256')
             .update(JSON.stringify(message) ?? '', 'utf8')
             .digest('hex'),

@@ -2,8 +2,9 @@ import { generateKeyPairSync } from 'node:crypto';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { apkKeyFingerprint } from '../../../src/crypto/apk-rsa.js';
-import { generateOpenPgpKey } from '../../../src/crypto/openpgp.js';
+import { generateOpenPgpKey, verifyClearsigned, verifyDetached } from '../../../src/crypto/openpgp.js';
 import { encodeFrame } from '../../../src/domain/signer-protocol.js';
+import { formatReleaseDate } from '../../../src/formats/deb/release.js';
 import { loadSignerConfig } from '../../../src/signer/config.js';
 import { SignatureJournal } from '../../../src/signer/journal.js';
 import type { KeyGenerators } from '../../../src/signer/operations.js';
@@ -226,5 +227,32 @@ describe('opérations du socket', () => {
       outcome: 'refused',
       reason: 'CRYPTO_UNSEAL_FAILED',
     });
+  });
+
+  it('signatures par le client : Release et point de contrôle, vérifiables avec la clé publique', async () => {
+    const { client } = await running();
+    const repo = (
+      await client.generateKey({ purpose: 'repo', kind: 'openpgp', identity: { ...identity, repoFormat: 'deb' } })
+    ).key;
+    const content = [
+      'Origin: lockmaster-debian-12',
+      'Label: lockmaster-debian-12 stable',
+      'Suite: stable',
+      `Date: ${formatReleaseDate(NOW)}`,
+      `Valid-Until: ${formatReleaseDate(new Date(NOW.getTime() + 7 * 86_400_000))}`,
+      'SHA256:',
+      ` ${'a'.repeat(64)} 1 main/binary-amd64/Packages`,
+      '',
+    ].join('\n');
+    const signed = await client.signAptRelease(repo.id, content, {
+      repo: 'debian-12',
+      channel: 'stable',
+      generation: 3,
+    });
+    expect(await verifyClearsigned(repo.publicKey, signed.inRelease, NOW)).toBe(content);
+    const audit = (await client.generateKey({ purpose: 'audit' })).key;
+    const checkpoint = await client.signAuditCheckpoint(audit.id, { seq: 1, hash: 'c'.repeat(64), at: NOW.getTime() });
+    const payload = new TextEncoder().encode(checkpoint.payload);
+    await expect(verifyDetached(audit.publicKey, payload, checkpoint.signature, NOW)).resolves.toBeUndefined();
   });
 });

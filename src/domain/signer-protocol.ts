@@ -11,7 +11,9 @@ export const MAX_FRAME_BYTES = 16 * 1024 * 1024;
 const HEADER_BYTES = 4;
 
 const OPERATIONS = ['ping', 'status', 'list-keys', 'generate-key', 'rotate-key', 'retire-key', 'sign', 'log'];
-const IMPLEMENTED = new Set(['ping', 'status', 'list-keys', 'generate-key', 'rotate-key', 'retire-key', 'log']);
+const IMPLEMENTED = new Set(['ping', 'status', 'list-keys', 'generate-key', 'rotate-key', 'retire-key', 'sign', 'log']);
+const sha256Hex = z.string().regex(/^[0-9a-f]{64}$/);
+const name = z.string().min(1).max(63);
 
 const keyId = z.string().regex(/^[0-9A-Za-z_-]{1,64}$/);
 const identitySchema = z.strictObject({
@@ -36,9 +38,29 @@ const requestSchema = z.union([
   z.strictObject({ op: z.literal('rotate-key'), keyId }),
   z.strictObject({ op: z.literal('retire-key'), keyId }),
   z.strictObject({ op: z.literal('log'), afterSeq: z.number().int().min(0), limit: z.number().int().min(1).max(1000) }),
+  // Demandes de signature (ADR-0009) : chaque type a ses contrôles côté signataire. `context` est le
+  // contexte déclaré, journalisé avec la signature.
+  z.strictObject({
+    op: z.literal('sign'),
+    keyId,
+    kind: z.literal('apt-release'),
+    // Même plafond que le lecteur de Release (maxControlTextBytes, 1 Mio) : rien de plus n'est encodé.
+    content: z
+      .string()
+      .min(1)
+      .max(1024 * 1024),
+    context: z.strictObject({ repo: name, channel: name, generation: z.number().int().min(0) }),
+  }),
+  z.strictObject({
+    op: z.literal('sign'),
+    keyId,
+    kind: z.literal('audit-checkpoint'),
+    checkpoint: z.strictObject({ seq: z.number().int().min(1), hash: sha256Hex, at: z.number().int().min(0) }),
+  }),
 ]);
 export type SignerRequest = z.infer<typeof requestSchema>;
 export type GenerateKeyRequest = Extract<SignerRequest, { op: 'generate-key' }>;
+export type SignRequest = Extract<SignerRequest, { op: 'sign' }>;
 
 // Résultats, validés par le client (src/signer-client/).
 export const publicKeySchema = z.strictObject({
@@ -75,6 +97,18 @@ export const statusSchema = z.strictObject({
     retired: z.number().int().min(0),
   }),
   journalHead: journalHeadSchema,
+});
+
+/** apt-release : InRelease (signature en clair) et Release.gpg (signature détachée en armure). */
+export const aptReleaseSignatureSchema = z.strictObject({
+  inRelease: z.string().max(8 * 1024 * 1024),
+  releaseGpg: z.string().max(64 * 1024),
+});
+
+/** audit-checkpoint : charge signée (JSON canonique de {seq, hash, at}) et signature détachée en armure. */
+export const checkpointSignatureSchema = z.strictObject({
+  payload: z.string().max(1024),
+  signature: z.string().max(64 * 1024),
 });
 
 export const logSchema = z.strictObject({

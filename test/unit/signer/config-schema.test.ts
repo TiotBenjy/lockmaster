@@ -41,6 +41,7 @@ describe('schéma du signataire = deploy/signer.example.toml', () => {
   it.each([
     ['message au-delà de 16 Mio', { server: { max_message_bytes: 16 * 1024 * 1024 + 1 } }],
     ['Valid-Until au-delà de 30 jours', { limits: { max_valid_until_days: 31 } }],
+    ["décalage d'horloge au-delà d'une heure", { limits: { max_clock_skew: '2h' } }],
     ['socket vide', { server: { socket: '' } }],
     ['groupe mal formé', { server: { socket_group: 'grp;rm' } }],
     ["clé de l'application", { http: { listen: ':8080' } }],

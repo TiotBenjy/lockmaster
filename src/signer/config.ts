@@ -36,7 +36,8 @@ export const signerConfigSchema = z.strictObject({
     .strictObject({
       signatures_per_minute_per_key: z.number().int().positive().default(120),
       max_valid_until_days: z.number().int().min(1).max(30).default(30),
-      max_clock_skew: duration('5m'),
+      // Au plus 1 h : au-delà, le contrôle de Date d'un Release perdrait son sens (gel des clients).
+      max_clock_skew: duration('5m').refine((ms) => ms <= 3_600_000, { message: 'au plus 1 h' }),
     })
     .prefault({}),
   log: z
