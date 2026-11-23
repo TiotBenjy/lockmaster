@@ -5,10 +5,11 @@ import { EXIT } from '../system/exit-codes.js';
 import { activationFd } from './activation.js';
 import { loadSignerConfig, resolveSignerConfigPath, type SignerConfig } from './config.js';
 import { initSigner } from './init.js';
+import { journalListing, keysListing } from './inspect.js';
 import { startSigner } from './server.js';
 
-// CLI du signataire : `lockmaster signer init|serve` (le lanceur /usr/bin/lockmaster aiguille la
-// sous-commande `signer` vers ce point d'entrée distinct, src/signer/main.ts). Jamais en root.
+// CLI du signataire : `lockmaster signer init|serve|keys list|log` (le lanceur /usr/bin/lockmaster
+// aiguille la sous-commande `signer` vers ce point d'entrée distinct, src/signer/main.ts). Jamais en root.
 
 export interface SignerCliRuntime {
   env: Readonly<Record<string, string | undefined>>;
@@ -22,6 +23,8 @@ const OPTIONS = {
   config: { type: 'string' },
   socket: { type: 'string' },
   'socket-activation': { type: 'boolean' },
+  after: { type: 'string' },
+  limit: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
 } as const;
 
@@ -31,7 +34,20 @@ const USAGE = `Usage : lockmaster signer <commande> [--config <fichier>]
   lockmaster signer serve                écoute sur server.socket de la configuration
   lockmaster signer serve --socket P     écoute sur le chemin P
   lockmaster signer serve --socket-activation   socket transmis par systemd
+  lockmaster signer keys list            clés (parties publiques seulement)
+  lockmaster signer log [--after N] [--limit N]   journal de signatures, chaîne vérifiée
 `;
+
+const COMMANDS = ['init', 'serve', 'keys list', 'log'];
+
+/** Tranche du journal : --after entier >= 0, --limit entier de 1 à 1000 (100 par défaut). */
+function logRange(after: string | undefined, limit: string | undefined): { afterSeq: number; limit: number } | null {
+  const afterSeq = after === undefined ? 0 : Number(after);
+  const size = limit === undefined ? 100 : Number(limit);
+  const valid =
+    Number.isSafeInteger(afterSeq) && afterSeq >= 0 && Number.isSafeInteger(size) && size >= 1 && size <= 1000;
+  return valid ? { afterSeq, limit: size } : null;
+}
 
 const CONFIG_ERROR = /^(CONFIG_|PATH_|NOT_INITIALIZED$|SECRET_FILE_|MASTER_KEY_|SIGNER_SOCKET_|SIGNER_ACTIVATION_)/;
 const SHUTDOWN_TIMEOUT_MS = 8_000;
@@ -73,9 +89,13 @@ export async function runSignerCli(argv: readonly string[], runtime: SignerCliRu
   }
   const command = positionals.join(' ');
   const serveOnly = values.socket !== undefined || values['socket-activation'] !== undefined;
+  const logOnly = values.after !== undefined || values.limit !== undefined;
+  const range = logRange(values.after, values.limit);
   if (
-    !['init', 'serve'].includes(command) ||
-    (command === 'init' && serveOnly) ||
+    !COMMANDS.includes(command) ||
+    (command !== 'serve' && serveOnly) ||
+    (command !== 'log' && logOnly) ||
+    range === null ||
     (values.socket && values['socket-activation'])
   ) {
     runtime.stderr.write(`commande ou options invalides : « signer ${command} »\n\n${USAGE}`);
@@ -90,6 +110,16 @@ export async function runSignerCli(argv: readonly string[], runtime: SignerCliRu
     if (command === 'init') {
       runtime.stdout.write(`${initSigner(config).join('\n')}\nSignataire initialisé.\n`);
       return EXIT.OK;
+    }
+    if (command === 'keys list') {
+      const lines = keysListing(config);
+      runtime.stdout.write(lines.length > 0 ? `${lines.join('\n')}\n` : 'aucune clé\n');
+      return EXIT.OK;
+    }
+    if (command === 'log') {
+      const { intact, lines } = journalListing(config, range);
+      runtime.stdout.write(`${lines.join('\n')}\n`);
+      return intact ? EXIT.OK : EXIT.FAILURE;
     }
     return await serve(runtime, config, values['socket-activation'] === true);
   } catch (error) {

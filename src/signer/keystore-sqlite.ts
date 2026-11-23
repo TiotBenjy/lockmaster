@@ -86,11 +86,19 @@ const toRecord = (row: KeyRow): KeyRecord => ({
 
 export class SqliteKeyStore implements KeyStore {
   readonly #db: Database.Database;
-  readonly #masterKey: Buffer;
+  readonly #masterKey: Buffer | null;
 
-  constructor(db: Database.Database, masterKey: Buffer) {
+  /** `masterKey` nul : lecture des parties publiques seulement (CLI `signer keys list`). */
+  constructor(db: Database.Database, masterKey: Buffer | null) {
     this.#db = db;
     this.#masterKey = masterKey;
+  }
+
+  #requireMasterKey(): Buffer {
+    if (this.#masterKey === null) {
+      throw new LockmasterError('SIGNER_MASTER_KEY_REQUIRED', 'clé maîtresse du signataire nécessaire');
+    }
+    return this.#masterKey;
   }
 
   insert(key: NewKey): void {
@@ -112,7 +120,7 @@ export class SqliteKeyStore implements KeyStore {
         state: key.state,
         createdAt: key.createdAt,
         expiresAt: key.expiresAt,
-        privateKeyEnc: seal(this.#masterKey, Buffer.from(privateKey, 'utf8'), sealContext(record)),
+        privateKeyEnc: seal(this.#requireMasterKey(), Buffer.from(privateKey, 'utf8'), sealContext(record)),
       });
     });
   }
@@ -131,7 +139,7 @@ export class SqliteKeyStore implements KeyStore {
     if (!record) throw notFound();
     if (record.state === 'retired') throw new LockmasterError('KEY_RETIRED', 'clé retirée');
     const row = this.#db.prepare('SELECT private_key_enc FROM key WHERE id = ?').get(id) as { private_key_enc: Buffer };
-    return unseal(this.#masterKey, row.private_key_enc, sealContext(record)).toString('utf8');
+    return unseal(this.#requireMasterKey(), row.private_key_enc, sealContext(record)).toString('utf8');
   }
 
   /** Compare et écrit : l'état observé doit être attendu et toujours le même au moment de l'écriture. */
