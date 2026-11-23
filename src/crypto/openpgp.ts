@@ -69,6 +69,20 @@ export async function generateOpenPgpKey(request: OpenPgpKeyRequest): Promise<Ge
   };
 }
 
+/** Type d'une clé publique (RSA 4096 ou Ed25519) : une rotation reprend celui de la clé remplacée. */
+export async function openPgpKeyType(publicKey: string): Promise<OpenPgpKeyType> {
+  let key: openpgp.Key;
+  try {
+    key = await openpgp.readKey({ armoredKey: publicKey });
+  } catch {
+    throw keyInvalid();
+  }
+  const info = key.getAlgorithmInfo();
+  if (info.algorithm === 'eddsaLegacy') return 'ed25519';
+  if (info.algorithm === 'rsaEncryptSign' && info.bits === 4096) return 'rsa4096';
+  throw keyInvalid();
+}
+
 async function readSigningKey(armoredKey: string): Promise<openpgp.PrivateKey> {
   let key: openpgp.PrivateKey;
   try {

@@ -6,6 +6,7 @@ import {
   type GeneratedOpenPgpKey,
   generateOpenPgpKey,
   OPENPGP_KEY_VALIDITY_DAYS,
+  openPgpKeyType,
   verifyClearsigned,
   verifyDetached,
 } from '../../../src/crypto/openpgp.js';
@@ -75,6 +76,12 @@ describe('clés OpenPGP (docs/03 §5, docs/02 §3.3, SEC-06)', () => {
       const request = { name: 'x', type: 'ed25519' as const, date: DATE, validityDays };
       expect(await codeOf(() => generateOpenPgpKey(request)), String(validityDays)).toBe('OPENPGP_KEY_REQUEST_INVALID');
     }
+  });
+
+  it("lit le type d'une clé publique (rotation à l'identique), refuse une clé illisible", async () => {
+    expect(await openPgpKeyType(rsa.publicKey)).toBe('rsa4096');
+    expect(await openPgpKeyType(ed.publicKey)).toBe('ed25519');
+    expect(await codeOf(() => openPgpKeyType('pas une clé'))).toBe('OPENPGP_KEY_INVALID');
   });
 
   it('certificat de révocation généré avec la clé, qui révoque bien la clé publique', async () => {

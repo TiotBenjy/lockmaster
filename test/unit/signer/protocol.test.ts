@@ -67,12 +67,56 @@ describe('trames du protocole du signataire (ADR-0009)', () => {
 });
 
 describe('requêtes et réponses', () => {
-  it("accepte ping et rien d'autre en M0", () => {
-    expect(parseRequest({ op: 'ping' })).toEqual({ op: 'ping' });
+  const identity = {
+    repoName: 'debian-12',
+    repoFormat: 'deb',
+    originLabel: 'lockmaster-debian-12',
+    allowedNames: ['*'],
+  };
+  const valid = [
+    { op: 'ping' },
+    { op: 'status' },
+    { op: 'list-keys' },
+    { op: 'generate-key', purpose: 'repo', kind: 'openpgp', identity },
+    { op: 'generate-key', purpose: 'repo', kind: 'openpgp', algorithm: 'ed25519', identity },
+    { op: 'generate-key', purpose: 'repo', kind: 'apk-rsa', identity: { ...identity, repoFormat: 'apk' } },
+    { op: 'generate-key', purpose: 'audit' },
+    { op: 'rotate-key', keyId: '01JKEY' },
+    { op: 'retire-key', keyId: '01JKEY' },
+    { op: 'log', afterSeq: 0, limit: 100 },
+  ];
+
+  it.each(valid)('accepte $op tel quel', (request) => {
+    expect(parseRequest(request)).toEqual(request);
+  });
+
+  it('refuse sign (pas encore pris en charge) et toute opération inconnue', () => {
     expect(codeOf(() => parseRequest({ op: 'sign', key: 'x' }))).toBe('SIGNER_UNKNOWN_OPERATION');
     expect(codeOf(() => parseRequest({ op: 'export-key' }))).toBe('SIGNER_UNKNOWN_OPERATION');
-    expect(codeOf(() => parseRequest({ op: 'ping', extra: 1 }))).toBe('SIGNER_REQUEST_INVALID');
     expect(codeOf(() => parseRequest('ping'))).toBe('SIGNER_REQUEST_INVALID');
+  });
+
+  it.each([
+    ['champ en trop', { op: 'ping', extra: 1 }],
+    ['clé privée fournie', { op: 'generate-key', purpose: 'audit', privateKey: 'x' }],
+    ["identité pour la clé d'audit", { op: 'generate-key', purpose: 'audit', identity }],
+    ['clé de dépôt sans identité', { op: 'generate-key', purpose: 'repo', kind: 'openpgp' }],
+    ['type de clé inconnu', { op: 'generate-key', purpose: 'repo', kind: 'dsa', identity }],
+    ['identifiant de clé mal formé', { op: 'rotate-key', keyId: '../x' }],
+    ['identité modifiée par rotation', { op: 'rotate-key', keyId: 'k', identity }],
+    ['tranche de journal trop grande', { op: 'log', afterSeq: 0, limit: 1001 }],
+    ['numéro négatif', { op: 'log', afterSeq: -1, limit: 1 }],
+    [
+      'motifs de noms démesurés',
+      {
+        op: 'generate-key',
+        purpose: 'repo',
+        kind: 'openpgp',
+        identity: { ...identity, allowedNames: Array.from({ length: 300 }, () => 'a') },
+      },
+    ],
+  ])('refuse une requête mal formée : %s', (_label, request) => {
+    expect(codeOf(() => parseRequest(request))).toBe('SIGNER_REQUEST_INVALID');
   });
 
   it('valide les réponses côté client', () => {

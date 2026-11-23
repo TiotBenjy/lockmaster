@@ -1,6 +1,18 @@
-import { createPublicKey, createVerify, generateKeyPairSync, type KeyPairKeyObjectResult } from 'node:crypto';
+import {
+  createHash,
+  createPublicKey,
+  createVerify,
+  generateKeyPairSync,
+  type KeyPairKeyObjectResult,
+} from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { type ApkRsaKey, generateApkRsaKey, signApk, verifyApk } from '../../../src/crypto/apk-rsa.js';
+import {
+  type ApkRsaKey,
+  apkKeyFingerprint,
+  generateApkRsaKey,
+  signApk,
+  verifyApk,
+} from '../../../src/crypto/apk-rsa.js';
 
 let key: ApkRsaKey;
 let other: ApkRsaKey;
@@ -17,6 +29,13 @@ describe('signature RSA APK (docs/02 §3.3, docs/03 §4.3)', () => {
     expect(publicKey.asymmetricKeyDetails?.modulusLength).toBe(4096);
     expect(key.publicKeyPem.startsWith('-----BEGIN PUBLIC KEY-----')).toBe(true);
     expect(key.privateKeyPem.startsWith('-----BEGIN PRIVATE KEY-----')).toBe(true);
+  });
+
+  it('empreinte : SHA-256 de la clé publique en SPKI DER, 64 caractères hexadécimaux', () => {
+    const der = createPublicKey(key.publicKeyPem).export({ type: 'spki', format: 'der' });
+    expect(apkKeyFingerprint(key.publicKeyPem)).toBe(createHash('sha256').update(der).digest('hex'));
+    expect(apkKeyFingerprint(key.publicKeyPem)).not.toBe(apkKeyFingerprint(other.publicKeyPem));
+    expect(() => apkKeyFingerprint('pas une clé')).toThrow(expect.objectContaining({ code: 'APK_KEY_INVALID' }));
   });
 
   it('signe en PKCS#1 v1.5 SHA-256 (format .SIGN.RSA256), vérifiable par openssl comme par verifyApk', () => {

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LockmasterError } from '../../../src/domain/errors.js';
-import { MAX_FRAME_BYTES } from '../../../src/domain/signer-protocol.js';
+import { encodeFrame, MAX_FRAME_BYTES } from '../../../src/domain/signer-protocol.js';
 import { createSignerClient, signerRequest } from '../../../src/signer-client/client.js';
 
 // Le client ne doit jamais rester bloqué : signataire qui ferme sans répondre, qui répond goutte à
@@ -71,5 +71,41 @@ describe('client du signataire', () => {
     const path = await fakeSigner(() => {});
     const huge = { op: 'ping', padding: 'x'.repeat(MAX_FRAME_BYTES) };
     expect(await codeOf(signerRequest({ socketPath: path, timeoutMs: 2000 }, huge))).toBe('SIGNER_FRAME_TOO_LARGE');
+  });
+
+  const key = {
+    id: '01JKEY',
+    kind: 'openpgp',
+    purpose: 'repo',
+    fingerprint: 'a'.repeat(40),
+    publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----',
+    identity: { repoName: 'debian-12', repoFormat: 'deb', originLabel: 'o', allowedNames: ['*'] },
+    state: 'active',
+    createdAt: 1,
+    expiresAt: null,
+  };
+  const replying = (response: unknown) =>
+    fakeSigner((socket) => socket.on('data', () => socket.end(encodeFrame(response))));
+
+  it('valide les résultats : liste de clés, état, journal', async () => {
+    let path = await replying({ ok: true, result: { keys: [key] } });
+    expect(await createSignerClient({ socketPath: path, timeoutMs: 5000 }).listKeys()).toEqual([key]);
+    const status = { keys: { active: 1, rotating_in: 0, rotating_out: 0, retired: 0 }, journalHead: null };
+    path = await replying({ ok: true, result: status });
+    expect(await createSignerClient({ socketPath: path, timeoutMs: 5000 }).status()).toEqual(status);
+  });
+
+  it('refuse un résultat avec un champ inattendu (clé privée renvoyée par erreur)', async () => {
+    const path = await replying({ ok: true, result: { keys: [{ ...key, privateKey: 'secret' }] } });
+    expect(await codeOf(createSignerClient({ socketPath: path, timeoutMs: 5000 }).listKeys())).toBe(
+      'SIGNER_RESPONSE_INVALID',
+    );
+  });
+
+  it("transmet le code d'un refus du signataire", async () => {
+    const path = await replying({ ok: false, error: { code: 'KEY_NOT_FOUND', message: 'clé inconnue' } });
+    expect(await codeOf(createSignerClient({ socketPath: path, timeoutMs: 5000 }).rotateKey('k'))).toBe(
+      'KEY_NOT_FOUND',
+    );
   });
 });

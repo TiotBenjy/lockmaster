@@ -3,17 +3,97 @@ import { LockmasterError } from './errors.js';
 
 // Protocole du socket du signataire (ADR-0009), partagé par src/signer/ et src/signer-client/ :
 // une requête par connexion, message JSON précédé de sa longueur (4 octets big-endian), 16 Mio au
-// plus, validé par zod des deux côtés. Opérations prévues : ping, status, list-keys, generate-key,
-// rotate-key, retire-key, sign, log ; seule `ping` existe au jalon M0. Aucune n'exporte de clé.
+// plus, validé par zod des deux côtés (schémas stricts : tout champ inconnu est refusé). Opérations :
+// ping, status, list-keys, generate-key, rotate-key, retire-key, log ; sign arrive avec ses contrôles par
+// type de demande. Aucune n'exporte de clé privée ni ne modifie l'identité d'une clé.
 
 export const MAX_FRAME_BYTES = 16 * 1024 * 1024;
 const HEADER_BYTES = 4;
 
 const OPERATIONS = ['ping', 'status', 'list-keys', 'generate-key', 'rotate-key', 'retire-key', 'sign', 'log'];
-const IMPLEMENTED = new Set(['ping']);
+const IMPLEMENTED = new Set(['ping', 'status', 'list-keys', 'generate-key', 'rotate-key', 'retire-key', 'log']);
 
-const pingRequest = z.strictObject({ op: z.literal('ping') });
-export type SignerRequest = z.infer<typeof pingRequest>;
+const keyId = z.string().regex(/^[0-9A-Za-z_-]{1,64}$/);
+const identitySchema = z.strictObject({
+  repoName: z.string().max(63),
+  repoFormat: z.enum(['deb', 'rpm', 'apk']),
+  originLabel: z.string().max(128),
+  allowedNames: z.array(z.string().max(128)).max(256),
+});
+
+const requestSchema = z.union([
+  z.strictObject({ op: z.literal('ping') }),
+  z.strictObject({ op: z.literal('status') }),
+  z.strictObject({ op: z.literal('list-keys') }),
+  z.strictObject({
+    op: z.literal('generate-key'),
+    purpose: z.literal('repo'),
+    kind: z.enum(['openpgp', 'apk-rsa']),
+    algorithm: z.enum(['rsa4096', 'ed25519']).optional(),
+    identity: identitySchema,
+  }),
+  z.strictObject({ op: z.literal('generate-key'), purpose: z.literal('audit') }),
+  z.strictObject({ op: z.literal('rotate-key'), keyId }),
+  z.strictObject({ op: z.literal('retire-key'), keyId }),
+  z.strictObject({ op: z.literal('log'), afterSeq: z.number().int().min(0), limit: z.number().int().min(1).max(1000) }),
+]);
+export type SignerRequest = z.infer<typeof requestSchema>;
+export type GenerateKeyRequest = Extract<SignerRequest, { op: 'generate-key' }>;
+
+// Résultats, validés par le client (src/signer-client/).
+export const publicKeySchema = z.strictObject({
+  id: keyId,
+  kind: z.enum(['openpgp', 'apk-rsa']),
+  purpose: z.enum(['repo', 'audit']),
+  fingerprint: z.string().regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/),
+  publicKey: z.string().max(64 * 1024),
+  identity: identitySchema.nullable(),
+  state: z.enum(['active', 'rotating_in', 'rotating_out', 'retired']),
+  createdAt: z.number().int(),
+  expiresAt: z.number().int().nullable(),
+});
+export type PublicSigningKey = z.infer<typeof publicKeySchema>;
+
+export const generatedKeySchema = z.strictObject({
+  key: publicKeySchema,
+  /** Certificat de révocation OpenPGP, rendu une seule fois et jamais stocké par le signataire (SEC-06). */
+  revocationCertificate: z
+    .string()
+    .max(64 * 1024)
+    .optional(),
+});
+
+const journalHeadSchema = z
+  .strictObject({ seq: z.number().int().min(1), hash: z.string().regex(/^[0-9a-f]{64}$/) })
+  .nullable();
+
+export const statusSchema = z.strictObject({
+  keys: z.strictObject({
+    active: z.number().int().min(0),
+    rotating_in: z.number().int().min(0),
+    rotating_out: z.number().int().min(0),
+    retired: z.number().int().min(0),
+  }),
+  journalHead: journalHeadSchema,
+});
+
+export const logSchema = z.strictObject({
+  entries: z.array(
+    z.strictObject({
+      seq: z.number().int().min(1),
+      at: z.number().int(),
+      keyId: keyId.nullable(),
+      kind: z.string().max(32),
+      contentSha256: z.string().regex(/^[0-9a-f]{64}$/),
+      request: z.record(z.string(), z.unknown()),
+      outcome: z.enum(['signed', 'refused', 'done']),
+      reason: z.string().max(512).optional(),
+      prevHash: z.string().regex(/^[0-9a-f]{64}$/),
+      hash: z.string().regex(/^[0-9a-f]{64}$/),
+    }),
+  ),
+  head: journalHeadSchema,
+});
 
 const responseSchema = z.union([
   z.strictObject({ ok: z.literal(true), result: z.record(z.string(), z.unknown()) }),
@@ -74,7 +154,7 @@ export function parseRequest(message: unknown): SignerRequest {
   if (typeof op === 'string' && (!OPERATIONS.includes(op) || !IMPLEMENTED.has(op))) {
     throw fail('SIGNER_UNKNOWN_OPERATION', `opération non prise en charge : ${op.slice(0, 32)}`);
   }
-  const result = pingRequest.safeParse(message);
+  const result = requestSchema.safeParse(message);
   if (!result.success) throw fail('SIGNER_REQUEST_INVALID', 'requête mal formée');
   return result.data;
 }

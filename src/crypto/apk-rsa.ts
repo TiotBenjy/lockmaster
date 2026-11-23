@@ -1,4 +1,12 @@
-import { createPrivateKey, createPublicKey, generateKeyPair, type KeyObject, sign, verify } from 'node:crypto';
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPair,
+  type KeyObject,
+  sign,
+  verify,
+} from 'node:crypto';
 import { LockmasterError } from '../domain/errors.js';
 
 // Signature APK (docs/02 §3.3, docs/03 §4.3) : RSA 4096, PKCS#1 v1.5 avec SHA-256, la forme des
@@ -37,6 +45,14 @@ function rsaKey(read: () => KeyObject): KeyObject {
   }
   if (key.asymmetricKeyType !== 'rsa' || (key.asymmetricKeyDetails?.modulusLength ?? 0) < 2048) throw keyInvalid();
   return key;
+}
+
+/** Empreinte d'une clé APK : SHA-256 de la clé publique en SPKI DER (64 caractères hexadécimaux). */
+export function apkKeyFingerprint(publicKeyPem: string): string {
+  const key = rsaKey(() => createPublicKey(publicKeyPem));
+  return createHash('sha256')
+    .update(key.export({ type: 'spki', format: 'der' }))
+    .digest('hex');
 }
 
 export function signApk(privateKeyPem: string, data: Uint8Array): Buffer {
