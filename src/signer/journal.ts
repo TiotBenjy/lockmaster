@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type Database from 'better-sqlite3';
+import { canonicalJson } from '../domain/canonical-json.js';
 import { LockmasterError } from '../domain/errors.js';
 import { runTransaction } from '../system/sqlite-tx.js';
 
@@ -71,24 +72,13 @@ const MAX_REASON_LENGTH = 512;
 
 const invalid = (reason: string) => new LockmasterError('SIGNER_LOG_INVALID', `entrée de journal refusée : ${reason}`);
 
-/**
- * JSON aux clés triées à tous les niveaux, limité aux valeurs JSON (chaînes, nombres finis, booléens,
- * null, tableaux, objets simples). La profondeur est vérifiée avant de descendre : jamais plus de
- * MAX_REQUEST_DEPTH niveaux de récursion.
- */
-function canonical(value: unknown, depth = 0): string {
-  if (depth > MAX_REQUEST_DEPTH) throw invalid('demande trop profonde');
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw invalid('nombre non fini dans la demande');
-    return JSON.stringify(value);
+/** Demande en JSON canonique (domain/canonical-json.ts), refusée avec le code du journal. */
+function canonical(value: unknown): string {
+  try {
+    return canonicalJson(value, MAX_REQUEST_DEPTH);
+  } catch (error) {
+    throw invalid(`demande : ${(error as Error).message}`);
   }
-  if (Array.isArray(value)) return `[${value.map((item) => canonical(item, depth + 1)).join(',')}]`;
-  if (typeof value === 'object' && [Object.prototype, null].includes(Object.getPrototypeOf(value))) {
-    const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonical(item, depth + 1)}`).join(',')}}`;
-  }
-  throw invalid('valeur non JSON dans la demande');
 }
 
 const KIND_RULES: Record<JournalEntry['outcome'], readonly string[]> = {
@@ -133,14 +123,20 @@ const toRecord = (row: Row): JournalRecord => ({
 
 export class SignatureJournal {
   readonly #db: Database.Database;
+  readonly #onAppend: ((record: JournalRecord) => void) | undefined;
 
-  constructor(db: Database.Database) {
+  /**
+   * `onAppend` : appelé après chaque ajout (journald, export hors hôte de la tête, SEC-21). Dans une
+   * transaction englobante, l'ajout au journal est la dernière écriture, donc conservé dès qu'il réussit.
+   */
+  constructor(db: Database.Database, onAppend?: (record: JournalRecord) => void) {
     this.#db = db;
+    this.#onAppend = onAppend;
   }
 
   append(entry: JournalEntry): JournalRecord {
     const request = checkedRequest(entry);
-    return runTransaction(this.#db, () => {
+    const record = runTransaction(this.#db, () => {
       const last = this.#db.prepare('SELECT seq, hash FROM signature_log ORDER BY seq DESC LIMIT 1').get() as
         | { seq: number; hash: string }
         | undefined;
@@ -164,6 +160,8 @@ export class SignatureJournal {
         .run(full);
       return toRecord(full);
     });
+    this.#onAppend?.(record);
+    return record;
   }
 
   list(range: { afterSeq: number; limit: number }): JournalRecord[] {
@@ -181,6 +179,14 @@ export class SignatureJournal {
       .prepare('SELECT * FROM signature_log WHERE seq > ? ORDER BY seq LIMIT ?')
       .all(afterSeq, limit) as Row[];
     return rows.map(toRecord);
+  }
+
+  /** Dernière entrée (numéro et hachage), sans parcourir la chaîne : à exporter pour détecter une troncature. */
+  head(): { seq: number; hash: string } | null {
+    const row = this.#db.prepare('SELECT seq, hash FROM signature_log ORDER BY seq DESC LIMIT 1').get() as
+      | { seq: number; hash: string }
+      | undefined;
+    return row ?? null;
   }
 
   /** Recalcule toute la chaîne : numéros contigus depuis 1, chaînage et hachage de chaque entrée. */
