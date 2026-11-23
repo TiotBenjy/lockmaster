@@ -142,7 +142,7 @@ lockmaster keys rotate-master --new F    rechiffre les secrets de l'application 
 Service de signature (exécuté sous le compte lockmaster-signer ; ADR-0009) :
 lockmaster signer init                   base du signataire, clé maîtresse du signataire si absente
 lockmaster signer serve [--socket P | --socket-activation]
-lockmaster signer keys list | import --openpgp|--apk --repo R | export-revocation K | emergency-rotate --repo R
+lockmaster signer keys list | import --openpgp|--apk --repo R | emergency-rotate --repo R
 lockmaster signer log [--since ...]        journal de signatures (vérification de la chaîne incluse)
 lockmaster signer rotate-master --new F
 lockmaster publish --all | --repo R [--channel C] [--target T]

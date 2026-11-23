@@ -52,8 +52,9 @@ et l'application écrit cette base de toute façon). Il vérifie ce qu'on lui de
 
 `ping`, `status`, `list-keys` (parties publiques), `generate-key` (pour un dépôt, avec son identité),
 `rotate-key`, `retire-key`, `sign`, `log`. **Jamais** d'export de clé privée ni de modification de
-l'identité d'une clé par le socket. L'import d'une clé existante, l'export du certificat de
-révocation et la rotation d'urgence passent par la CLI locale du signataire
+l'identité d'une clé par le socket. Le certificat de révocation OpenPGP est rendu une seule fois par
+`generate-key` et `rotate-key`, puis jamais stocké ni journalisé (SEC-06, amendement ci-dessous).
+L'import d'une clé existante et la rotation d'urgence passent par la CLI locale du signataire
 (`lockmaster signer ...`, exécutée sous le compte `lockmaster-signer`).
 
 Protocole : messages JSON délimités par leur longueur (préfixe 4 octets), 16 MiB maximum, validés
@@ -75,8 +76,9 @@ Fichiers de référence : `packaging/systemd/`, `deploy/quadlet/`, `deploy/compo
 - La clé ne peut plus être **copiée** depuis l'application : une compromission de l'application
   permet au pire de demander des signatures conformes aux contrôles ci-dessus, pendant la durée de
   l'intrusion, et chacune est journalisée hors de portée de l'attaquant.
-- Le signataire est minuscule (objectif < 1 500 lignes hors bibliothèques de format partagées), sans
-  réseau ni HTTP, ce qui réduit fortement sa surface d'attaque.
+- Le signataire est petit (objectif < 2 000 lignes hors bibliothèques de format partagées et code pur
+  de `src/domain/`, amendement ci-dessous), sans réseau ni HTTP, ce qui réduit fortement sa surface
+  d'attaque.
 - Même artefact, même image : pas de chaîne de livraison supplémentaire.
 
 ## Alternatives écartées
@@ -98,3 +100,17 @@ Fichiers de référence : `packaging/systemd/`, `deploy/quadlet/`, `deploy/compo
 - Test e2e obligatoire : sous le compte de l'application, toute lecture des fichiers du signataire
   échoue ; une demande de signature non conforme (mauvais `Origin`, contenu arbitraire) est refusée
   et journalisée.
+
+## Amendement (décision du porteur, 2026-11-23)
+
+- **Certificat de révocation** : rendu une seule fois par `generate-key` et `rotate-key` (l'application
+  l'affiche, par exemple à `lockmaster init`, sans le stocker ni le journaliser), conformément à
+  `docs/03` §5 (« affiché une seule fois »). Le conserver pour un export ultérieur par la CLI
+  contredirait « jamais stocké » (SEC-06) : il n'y a donc pas de commande d'export.
+- **Régénération d'une lignée** : retirer la clé d'un dépôt puis en générer une nouvelle, avec une autre
+  identité, reste possible par le socket. Chaque étape est journalisée hors de portée de l'application,
+  et la flotte ne reconnaît pas la nouvelle empreinte (clés installées hors bande, SEC-03) : l'effet
+  possible d'une application compromise est un déni de service, déjà possible par le seul retrait.
+- **Taille** : objectif porté de 1 500 à 2 000 lignes pour `src/signer/`, la demande `sign` et ses six
+  contrôles par type ne tenant pas dans l'objectif initial. Le code pur partagé avec l'application
+  (`src/domain/signing-key.ts`, `src/domain/canonical-json.ts`, protocole) n'est pas compté.
